@@ -8,6 +8,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write   # needed by tauri-action to create / update Releases
+
 jobs:
   build:
     name: ${{ matrix.label }}
