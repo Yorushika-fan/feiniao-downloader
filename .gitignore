@@ -1,0 +1,57 @@
+# Node / Vite
+node_modules
+dist
+dist-ssr
+*.local
+.pnpm-store
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tauri
+src-tauri/target
+src-tauri/Cargo.lock
+src-tauri/gen
+src-tauri/binaries/
+
+# OMC / autopilot session state (entirely private)
+.omc/
+.claude/skills/
+.claude/commands/
+.claude/settings.local.json
+
+# Website build output (deployed separately, not part of source)
+website/dist/feiniao-downloader-*.dmg
+website/dist/feiniao-downloader-*.exe
+website/dist/feiniao-downloader-*.AppImage
+
+# Build artifacts copied for upload (not source)
+*.dmg
+*.msi
+*.AppImage
+*.deb
+!website/dist/feiniao-downloader-1.2.1.dmg
+
+# Logs / temp
+*.log
+.tmp/
+*.tmp
+
+# Sensitive
+.env
+.env.local
+.env.*.local
+
+# Editor cruft
+*.swp
+*.swo
+*~
+
+# pnpm
+.pnpm-debug.log*

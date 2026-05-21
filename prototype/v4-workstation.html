@@ -1,0 +1,1669 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>飞鸟下载器 — 视频工作站</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAFAF9;
+    --card: #FFFFFF;
+    --border: #E7E5E4;
+    --text: #0C0A09;
+    --muted: #737373;
+    --amber-start: #D97706;
+    --amber-mid: #CA8A04;
+    --amber-end: #EAB308;
+    --success: #16A085;
+    --warning: #F59E0B;
+    --danger: #DC2626;
+    --sidebar-w: 220px;
+    --titlebar-h: 44px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', 'PingFang SC', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Titlebar */
+  .titlebar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: var(--titlebar-h);
+    background: rgba(250,250,249,0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+    display: flex; align-items: center;
+    padding: 0 16px 0 76px;
+  }
+  .titlebar-app { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+  .titlebar-actions { display: flex; align-items: center; gap: 8px; }
+  .titlebar-btn {
+    height: 28px; padding: 0 10px;
+    font-size: 11.5px; font-weight: 500;
+    border-radius: 6px; border: 1px solid var(--border);
+    background: var(--card); color: var(--muted);
+    cursor: pointer; display: flex; align-items: center; gap: 5px;
+    transition: all 0.15s;
+  }
+  .titlebar-btn:hover { background: #F5F5F4; color: var(--text); }
+  .titlebar-toggle {
+    height: 20px; width: 36px; border-radius: 10px;
+    background: #E5E7EB; border: none; cursor: pointer;
+    position: relative; transition: background 0.2s;
+  }
+  .titlebar-toggle.on { background: linear-gradient(135deg, var(--amber-start), var(--amber-end)); }
+  .titlebar-toggle::after {
+    content: ''; position: absolute;
+    top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: white; transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .titlebar-toggle.on::after { transform: translateX(16px); }
+  .menubar-label { font-size: 11px; color: var(--muted); }
+  .traffic-light-space { width: 76px; height: 44px; display: flex; align-items: center; padding-left: 16px; gap: 6px; }
+  .tl { width: 12px; height: 12px; border-radius: 50%; }
+  .tl-r { background: #FF5F57; }
+  .tl-y { background: #FFBD2E; }
+  .tl-g { background: #28C840; }
+
+  /* Layout */
+  .app-body {
+    display: flex;
+    padding-top: var(--titlebar-h);
+    height: 100vh;
+  }
+  /* Sidebar */
+  .sidebar {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    height: 100%;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: 12px 0;
+    overflow-y: auto;
+  }
+  .nav-group-label {
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+    color: var(--muted); text-transform: uppercase;
+    padding: 8px 16px 4px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 16px;
+    font-size: 13px; font-weight: 500; color: #44403C;
+    cursor: pointer; border-radius: 0;
+    position: relative; transition: all 0.15s;
+    margin: 1px 8px; border-radius: 8px;
+  }
+  .nav-item:hover { background: #F5F5F4; color: var(--text); }
+  .nav-item.active {
+    background: linear-gradient(90deg, rgba(217,119,6,0.08), rgba(234,179,8,0.04));
+    color: var(--amber-start);
+  }
+  .nav-item.active::before {
+    content: ''; position: absolute;
+    left: -8px; top: 6px; bottom: 6px;
+    width: 3px; border-radius: 0 2px 2px 0;
+    background: linear-gradient(180deg, var(--amber-start), var(--amber-end));
+  }
+  .nav-icon { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .nav-badge {
+    margin-left: auto; font-size: 10px; font-weight: 600;
+    padding: 1px 6px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--amber-start), var(--amber-end));
+    color: white;
+  }
+  .nav-badge.new {
+    background: var(--success); font-size: 9.5px;
+  }
+  .sidebar-watermark {
+    margin-top: auto; padding: 12px 16px;
+    font-size: 10px; color: #A8A29E;
+    font-family: 'DM Mono', 'Menlo', monospace;
+  }
+
+  /* Main content */
+  .main-content {
+    flex: 1; overflow-y: auto;
+    background: var(--bg);
+  }
+  .page { display: none; max-width: 920px; margin: 0 auto; padding: 28px 32px; }
+  .page.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+    pointer-events: none;
+  }
+  .amber-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; color: white;
+    background: linear-gradient(135deg, var(--amber-start), var(--amber-end));
+    border: none; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(217,119,6,0.3);
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .amber-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(217,119,6,0.4);
+  }
+  .amber-btn:active { transform: translateY(0); }
+
+  /* Page headers */
+  .page-title { font-size: 22px; font-weight: 700; color: var(--text); }
+  .page-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* ===== 速取 PAGE ===== */
+  .bento-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .bento-main {
+    grid-column: 1; grid-row: 1 / 3;
+    padding: 28px;
+  }
+  .bento-batch { grid-column: 2; grid-row: 1; padding: 22px; }
+  .bento-channel { grid-column: 2; grid-row: 2; padding: 22px; }
+
+  .bird-mascot {
+    width: 60px; height: 60px; margin-bottom: 16px;
+    position: relative;
+  }
+  .bird-halo {
+    position: absolute; inset: -8px;
+    background: radial-gradient(circle, rgba(217,119,6,0.15) 0%, transparent 70%);
+    border-radius: 50%; animation: pulse-halo 3s ease-in-out infinite;
+  }
+  @keyframes pulse-halo {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.15); opacity: 1; }
+  }
+  .url-input-row {
+    display: flex; gap: 8px; align-items: center;
+    margin-top: 16px; background: #F9F9F8;
+    border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 6px 6px 6px 14px;
+    transition: border-color 0.2s;
+  }
+  .url-input-row:focus-within { border-color: var(--amber-start); }
+  .url-input-row input {
+    flex: 1; background: transparent; border: none; outline: none;
+    font-size: 13px; color: var(--text);
+    font-family: inherit;
+  }
+  .url-input-row input::placeholder { color: #A8A29E; }
+  .inline-select {
+    height: 32px; padding: 0 8px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--card); color: var(--text);
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+  }
+  .source-pill-group {
+    display: flex; gap: 4px; margin-top: 14px;
+    background: #F5F5F4; border-radius: 8px; padding: 3px;
+  }
+  .source-pill {
+    flex: 1; padding: 5px 10px; border-radius: 6px;
+    font-size: 11.5px; font-weight: 500; color: var(--muted);
+    cursor: pointer; text-align: center; transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .source-pill.active {
+    background: var(--card); color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .dropzone {
+    border: 2px dashed #D6D3D1; border-radius: 12px;
+    padding: 24px; text-align: center;
+    cursor: pointer; transition: all 0.2s;
+    margin-top: 12px;
+  }
+  .dropzone:hover { border-color: var(--amber-start); background: rgba(217,119,6,0.03); }
+
+  /* Recent activity */
+  .recent-section { margin-top: 28px; }
+  .section-label {
+    font-size: 12px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 12px;
+  }
+  .recent-scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+  .recent-scroll::-webkit-scrollbar { height: 4px; }
+  .recent-scroll::-webkit-scrollbar-track { background: transparent; }
+  .recent-scroll::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 2px; }
+  .mini-task {
+    min-width: 200px; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; cursor: pointer;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .mini-task:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+  .mini-task img { width: 100%; height: 90px; object-fit: cover; }
+  .mini-task-info { padding: 8px 10px; }
+  .mini-task-title { font-size: 11.5px; font-weight: 500; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 6px;
+    margin-top: 5px;
+  }
+  .status-done { background: rgba(22,160,133,0.1); color: var(--success); }
+  .status-active { background: rgba(217,119,6,0.1); color: var(--amber-start); }
+  .status-fail { background: rgba(220,38,38,0.1); color: var(--danger); }
+  .status-wait { background: #F5F5F4; color: var(--muted); }
+
+  /* ===== TASKS PAGE ===== */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .kpi-label { font-size: 11px; font-weight: 500; color: var(--muted); }
+  .kpi-value {
+    font-size: 26px; font-weight: 700; margin-top: 4px;
+    font-family: 'DM Mono', 'Menlo', monospace;
+    background: linear-gradient(135deg, var(--amber-start), var(--amber-end));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .filter-chips { display: flex; gap: 8px; margin-bottom: 16px; }
+  .chip {
+    padding: 6px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card); color: var(--muted);
+    transition: all 0.15s;
+  }
+  .chip.active {
+    background: linear-gradient(135deg, var(--amber-start), var(--amber-end));
+    color: white; border-color: transparent;
+  }
+
+  .task-group-label {
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin: 20px 0 10px;
+  }
+  .task-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 10px; cursor: pointer;
+    transition: all 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .task-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
+  .task-card.active-task { border-color: rgba(217,119,6,0.3); }
+  .task-card.active-task::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--amber-start), var(--amber-end));
+    animation: shimmer 2s linear infinite;
+    background-size: 200% 100%;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .task-thumb {
+    width: 96px; height: 54px; border-radius: 8px;
+    object-fit: cover; flex-shrink: 0;
+    background: #E7E5E4;
+  }
+  .task-info { flex: 1; min-width: 0; }
+  .task-title { font-size: 13px; font-weight: 500; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .task-meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .task-progress-bar {
+    height: 4px; background: #F5F5F4; border-radius: 2px; margin-top: 8px; overflow: hidden;
+  }
+  .task-progress-fill {
+    height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, var(--amber-start), var(--amber-end));
+    transition: width 0.5s;
+  }
+  .sparkline-area { width: 80px; height: 40px; flex-shrink: 0; }
+
+  /* ===== SUBSCRIPTIONS PAGE ===== */
+  .sub-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px; }
+  .sub-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 18px;
+    cursor: pointer; transition: all 0.2s;
+    position: relative; overflow: hidden;
+    group: true;
+  }
+  .sub-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+  .sub-card:hover .sub-hover-actions { opacity: 1; }
+  .sub-avatar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .sub-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    object-fit: cover; flex-shrink: 0;
+    background: linear-gradient(135deg, #FDE68A, #F59E0B);
+  }
+  .platform-badge {
+    font-size: 9.5px; font-weight: 700; padding: 2px 6px;
+    border-radius: 5px; letter-spacing: 0.03em;
+  }
+  .badge-yt { background: #FEE2E2; color: #DC2626; }
+  .badge-bili { background: #EFF6FF; color: #3B82F6; }
+  .badge-dy { background: #F0FDF4; color: #16A34A; }
+  .badge-xhs { background: #FFF1F2; color: #E11D48; }
+  .badge-ph { background: #FFF7ED; color: #C2410C; }
+  .sub-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .sub-handle { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+  .sub-meta { font-size: 11px; color: var(--muted); margin-top: 10px; }
+  .sub-new-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; font-weight: 600;
+    padding: 3px 8px; border-radius: 8px; margin-top: 6px;
+    background: rgba(217,119,6,0.1); color: var(--amber-start);
+  }
+  .sub-toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .sub-toggle-label { font-size: 11px; color: var(--muted); }
+  .toggle-sm {
+    width: 30px; height: 17px; border-radius: 9px;
+    border: none; cursor: pointer; position: relative;
+    transition: background 0.2s; flex-shrink: 0;
+  }
+  .toggle-sm.on { background: var(--success); }
+  .toggle-sm.off { background: #D6D3D1; }
+  .toggle-sm::after {
+    content: ''; position: absolute;
+    top: 2px; left: 2px;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: white; transition: transform 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  }
+  .toggle-sm.on::after { transform: translateX(13px); }
+  .sub-hover-actions {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(0deg, rgba(255,255,255,0.98) 60%, transparent);
+    padding: 12px 16px 14px;
+    opacity: 0; transition: opacity 0.2s;
+    display: flex; gap: 6px;
+  }
+  .action-btn-sm {
+    flex: 1; padding: 5px 4px; border-radius: 7px;
+    font-size: 10.5px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card);
+    color: var(--text); text-align: center; transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .action-btn-sm:hover { background: #F5F5F4; }
+  .action-btn-sm.danger { color: var(--danger); border-color: rgba(220,38,38,0.2); }
+
+  /* ===== MEDIA LIBRARY ===== */
+  .library-layout { display: flex; gap: 20px; }
+  .library-filter {
+    width: 180px; min-width: 180px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px; height: fit-content;
+    position: sticky; top: 0;
+  }
+  .filter-section-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  .filter-check { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; cursor: pointer; }
+  .filter-check input[type=checkbox] { accent-color: var(--amber-start); }
+  .filter-check label { font-size: 12px; color: var(--text); cursor: pointer; }
+  .library-main { flex: 1; min-width: 0; }
+  .library-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .search-input {
+    flex: 1; height: 34px; padding: 0 12px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--card); font-size: 13px; color: var(--text);
+    font-family: inherit; outline: none; transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--amber-start); }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--card);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; color: var(--muted);
+  }
+  .icon-btn:hover { background: #F5F5F4; color: var(--text); }
+  .video-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .video-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .video-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+  .video-card:hover .video-play-overlay { opacity: 1; }
+  .video-thumb-wrap { position: relative; aspect-ratio: 16/9; }
+  .video-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+  .video-play-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .play-circle {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(255,255,255,0.95);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .video-info { padding: 10px; }
+  .video-title { font-size: 12px; font-weight: 500; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .video-meta-row { font-size: 10.5px; color: var(--muted); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+  .video-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .tag-pill { font-size: 9.5px; padding: 1.5px 6px; border-radius: 5px; background: #F5F5F4; color: var(--muted); }
+
+  /* Drawer */
+  .drawer-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.2);
+    z-index: 200; display: none;
+    backdrop-filter: blur(2px);
+  }
+  .drawer-backdrop.open { display: block; }
+  .drawer {
+    position: fixed; top: var(--titlebar-h); right: 0; bottom: 0;
+    width: 400px; background: var(--card);
+    border-left: 1px solid var(--border);
+    z-index: 201; overflow-y: auto;
+    transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: -8px 0 40px rgba(0,0,0,0.12);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-header {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; background: var(--card); z-index: 1;
+  }
+  .drawer-title { font-size: 14px; font-weight: 600; }
+  .drawer-close { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border); background: var(--card); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all 0.15s; }
+  .drawer-close:hover { background: #F5F5F4; color: var(--text); }
+  .drawer-body { padding: 20px; }
+  .drawer-video-preview {
+    width: 100%; aspect-ratio: 16/9; border-radius: 10px;
+    background: #0C0A09; overflow: hidden; margin-bottom: 16px;
+    position: relative;
+  }
+  .drawer-video-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .drawer-video-preview .play-overlay-lg {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.3);
+  }
+  .play-circle-lg {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(255,255,255,0.9);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: transform 0.15s;
+  }
+  .play-circle-lg:hover { transform: scale(1.08); }
+  .detail-row {
+    display: flex; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid #F5F5F4;
+    font-size: 12.5px;
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-label { color: var(--muted); }
+  .detail-value { color: var(--text); font-weight: 500; text-align: right; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .drawer-action-btn {
+    padding: 9px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--card);
+    font-size: 12px; font-weight: 500; color: var(--text);
+    cursor: pointer; text-align: center; transition: all 0.15s;
+  }
+  .drawer-action-btn:hover { background: #F5F5F4; }
+  .drawer-action-btn.danger { color: var(--danger); border-color: rgba(220,38,38,0.15); }
+
+  /* ===== SETTINGS PAGE ===== */
+  .settings-layout { display: flex; gap: 0; background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; min-height: 600px; }
+  .settings-sidebar { width: 160px; border-right: 1px solid var(--border); padding: 14px 0; }
+  .settings-nav-item {
+    padding: 8px 16px; font-size: 13px; font-weight: 500;
+    color: var(--muted); cursor: pointer; transition: all 0.15s;
+    border-radius: 0;
+  }
+  .settings-nav-item:hover { background: #F9F9F8; color: var(--text); }
+  .settings-nav-item.active {
+    background: linear-gradient(90deg, rgba(217,119,6,0.08), rgba(234,179,8,0.04));
+    color: var(--amber-start); font-weight: 600;
+    border-left: 2.5px solid var(--amber-start);
+  }
+  .settings-content { flex: 1; padding: 28px 32px; overflow-y: auto; }
+  .settings-section { margin-bottom: 28px; }
+  .settings-section-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .settings-section-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .extension-hero {
+    background: linear-gradient(135deg, #FFF7ED, #FFFBEB);
+    border: 1px solid rgba(217,119,6,0.2);
+    border-radius: 14px; padding: 24px;
+    display: flex; align-items: center; gap: 24px;
+    margin-bottom: 24px;
+  }
+  .extension-mock-screenshot {
+    width: 180px; height: 120px; border-radius: 10px;
+    background: #1C1917; border: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0; overflow: hidden; position: relative;
+  }
+  .browser-mock-bar {
+    height: 22px; background: #2C2C2C;
+    display: flex; align-items: center; padding: 0 8px; gap: 4px;
+  }
+  .browser-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .mock-context-menu {
+    position: absolute; right: 10px; top: 30px;
+    background: white; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    padding: 4px; width: 120px;
+  }
+  .mock-menu-item { padding: 5px 9px; font-size: 9px; color: #1C1917; border-radius: 4px; cursor: pointer; }
+  .mock-menu-item.highlighted { background: linear-gradient(135deg, #D97706, #EAB308); color: white; }
+  .browser-install-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .browser-install-card {
+    background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 12px; padding: 16px; text-align: center;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .browser-install-card:hover { border-color: var(--amber-start); background: rgba(217,119,6,0.02); transform: translateY(-1px); }
+  .browser-icon { width: 32px; height: 32px; margin: 0 auto 8px; border-radius: 8px; }
+  .how-it-works { margin-top: 28px; }
+  .how-step { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 20px; }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--amber-start), var(--amber-end));
+    color: white; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-text h4 { font-size: 13px; font-weight: 600; }
+  .step-text p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Language dropdown */
+  .lang-dropdown-wrap { position: relative; }
+  .lang-dropdown-menu {
+    position: absolute; top: 34px; right: 0;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 4px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    display: none; min-width: 100px; z-index: 200;
+  }
+  .lang-dropdown-menu.open { display: block; }
+  .lang-option { padding: 7px 12px; font-size: 12.5px; cursor: pointer; border-radius: 7px; color: var(--text); }
+  .lang-option:hover { background: #F5F5F4; }
+  .lang-option.selected { color: var(--amber-start); font-weight: 600; }
+
+  /* Pulse dots */
+  .pulse-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--success); position: relative;
+    display: inline-block; flex-shrink: 0;
+  }
+  .pulse-dot::after {
+    content: ''; position: absolute; inset: -3px;
+    border-radius: 50%; background: var(--success);
+    opacity: 0.3; animation: pulse-ring 1.5s ease-out infinite;
+  }
+  @keyframes pulse-ring {
+    0% { transform: scale(0.8); opacity: 0.4; }
+    100% { transform: scale(1.8); opacity: 0; }
+  }
+  .pulse-dot.amber { background: var(--amber-start); }
+  .pulse-dot.amber::after { background: var(--amber-start); }
+
+  /* Entrance animations */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .page.active > * {
+    animation: fadeInUp 0.3s ease both;
+  }
+  .page.active > *:nth-child(2) { animation-delay: 0.04s; }
+  .page.active > *:nth-child(3) { animation-delay: 0.08s; }
+  .page.active > *:nth-child(4) { animation-delay: 0.12s; }
+
+  /* Scrollbar */
+  .main-content::-webkit-scrollbar { width: 6px; }
+  .main-content::-webkit-scrollbar-track { background: transparent; }
+  .main-content::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 3px; }
+
+  /* Sort select */
+  .sort-select {
+    height: 34px; padding: 0 10px;
+    border: 1px solid var(--border); border-radius: 9px;
+    background: var(--card); color: var(--text); font-size: 12.5px;
+    cursor: pointer; outline: none; font-family: inherit;
+  }
+</style>
+</head>
+<body>
+
+<!-- Titlebar -->
+<div class="titlebar">
+  <div class="traffic-light-space">
+    <div class="tl tl-r"></div>
+    <div class="tl tl-y"></div>
+    <div class="tl tl-g"></div>
+  </div>
+  <span class="titlebar-app">飞鸟下载器</span>
+  <div class="titlebar-actions">
+    <div class="lang-dropdown-wrap">
+      <button class="titlebar-btn" onclick="toggleLang()">
+        <span>中文</span>
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+      <div class="lang-dropdown-menu" id="langMenu">
+        <div class="lang-option selected">中文</div>
+        <div class="lang-option">English</div>
+        <div class="lang-option">日本語</div>
+      </div>
+    </div>
+    <button class="titlebar-btn" style="color:#D97706;border-color:rgba(217,119,6,0.3);">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+      Chrome 扩展
+    </button>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span class="menubar-label">在菜单栏运行 ⌃</span>
+      <button class="titlebar-toggle" id="menubarToggle" onclick="toggleMenubar(this)"></button>
+    </div>
+    <button class="icon-btn" onclick="activatePage('settings')" style="width:28px;height:28px;border-radius:7px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- App body -->
+<div class="app-body">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="nav-group-label">工作流</div>
+    <div class="nav-item active" data-page="home" onclick="activatePage('home', this)">
+      <span class="nav-icon">🏠</span> 速取
+    </div>
+    <div class="nav-item" data-page="tasks" onclick="activatePage('tasks', this)">
+      <span class="nav-icon">📺</span> 任务
+      <span class="nav-badge">3</span>
+    </div>
+
+    <div class="nav-group-label" style="margin-top:8px;">内容</div>
+    <div class="nav-item" data-page="subscriptions" onclick="activatePage('subscriptions', this)">
+      <span class="nav-icon">⭐</span> 订阅
+      <span class="nav-badge new">2 新</span>
+    </div>
+    <div class="nav-item" data-page="library" onclick="activatePage('library', this)">
+      <span class="nav-icon">📁</span> 媒体库
+    </div>
+
+    <div class="nav-group-label" style="margin-top:8px;">工具</div>
+    <div class="nav-item" data-page="settings" onclick="activatePage('settings', this)">
+      <span class="nav-icon">⚙</span> 设置
+    </div>
+
+    <div class="sidebar-watermark">v1.1 · 飞鸟</div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main-content" id="mainContent">
+
+    <!-- ===== 速取 PAGE ===== -->
+    <div class="page active" id="page-home">
+      <div style="display:flex;align-items:baseline;gap:10px;">
+        <h1 class="page-title">速取</h1>
+        <span class="page-sub">快速下载任意视频</span>
+      </div>
+
+      <!-- Bento grid -->
+      <!-- ⚡ NEW vs v1: Bento layout replaces single input; batch + channel zones added -->
+      <div class="bento-grid">
+        <!-- Main paste area -->
+        <div class="card bento-main">
+          <div class="bird-mascot">
+            <div class="bird-halo"></div>
+            <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" width="60" height="60">
+              <defs>
+                <linearGradient id="birdGrad" x1="0" y1="0" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#D97706"/>
+                  <stop offset="50%" stop-color="#CA8A04"/>
+                  <stop offset="100%" stop-color="#EAB308"/>
+                </linearGradient>
+              </defs>
+              <ellipse cx="30" cy="38" rx="16" ry="12" fill="url(#birdGrad)" opacity="0.9"/>
+              <ellipse cx="30" cy="26" rx="11" ry="10" fill="url(#birdGrad)"/>
+              <ellipse cx="38" cy="22" rx="10" ry="7" fill="url(#birdGrad)" opacity="0.85"/>
+              <circle cx="34" cy="22" r="2.5" fill="white" opacity="0.9"/>
+              <circle cx="34.8" cy="22.5" r="1" fill="#1C1917"/>
+              <path d="M40 28 L48 24 L46 31 Z" fill="url(#birdGrad)" opacity="0.9"/>
+              <path d="M14 36 L8 32 L12 28 Z" fill="url(#birdGrad)" opacity="0.7"/>
+            </svg>
+          </div>
+          <h2 style="font-size:18px;font-weight:700;color:var(--text);">粘贴视频链接</h2>
+          <p style="font-size:13px;color:var(--muted);margin-top:4px;">支持 YouTube · B站 · 抖音 · 小红书 · 500+ 平台</p>
+
+          <div class="url-input-row">
+            <input type="text" placeholder="https://www.youtube.com/watch?v=...">
+            <select class="inline-select">
+              <option>1080p</option><option>720p</option><option>4K</option><option>480p</option>
+            </select>
+            <select class="inline-select">
+              <option>MP4</option><option>MP3</option><option>WebM</option><option>MKV</option>
+            </select>
+            <button class="amber-btn" style="padding:8px 16px;">
+              下载 →
+            </button>
+          </div>
+
+          <div class="source-pill-group">
+            <div class="source-pill active">🌐 视频网站</div>
+            <div class="source-pill" onclick="switchPill(this)">🎬 短视频（无水印）</div>
+          </div>
+        </div>
+
+        <!-- Batch dropzone -->
+        <!-- ⚡ NEW vs v1: Batch TXT import zone -->
+        <div class="card bento-batch">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+            <span style="font-size:14px;font-weight:600;">拖入文件批量解析</span>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:4px;">一次下载数十个链接</p>
+          <div class="dropzone">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#D6D3D1" stroke-width="1.5" style="margin:0 auto 8px;display:block;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p style="font-size:12px;color:var(--muted);">支持 .txt 链接列表</p>
+            <p style="font-size:11px;color:#A8A29E;margin-top:2px;">拖入或点击上传</p>
+          </div>
+        </div>
+
+        <!-- Channel download -->
+        <!-- ⚡ NEW vs v1: Channel full-download zone -->
+        <div class="card bento-channel">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/></svg>
+            <span style="font-size:14px;font-weight:600;">频道一键全下</span>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">下载整个频道或播放列表</p>
+          <div style="display:flex;gap:8px;">
+            <input type="text" class="search-input" style="flex:1;" placeholder="粘贴 @username 或主页 URL">
+            <button class="amber-btn" style="padding:8px 12px;font-size:12px;">全下</button>
+          </div>
+          <p style="font-size:11px;color:#A8A29E;margin-top:8px;">例：youtube.com/@veritasium</p>
+        </div>
+      </div>
+
+      <!-- Recent activity -->
+      <div class="recent-section">
+        <div class="section-label">最近活动</div>
+        <div class="recent-scroll">
+          <div class="mini-task">
+            <img src="https://picsum.photos/seed/feiniao1/200/112" alt="">
+            <div class="mini-task-info">
+              <div class="mini-task-title">为什么99%的人都不理解爱因斯坦的相对论</div>
+              <div class="status-badge status-done"><span class="pulse-dot" style="width:5px;height:5px;"></span>已完成</div>
+            </div>
+          </div>
+          <div class="mini-task">
+            <img src="https://picsum.photos/seed/feiniao2/200/112" alt="">
+            <div class="mini-task-info">
+              <div class="mini-task-title">犯罪心理学的边界 — 刑法的灰色地带</div>
+              <div class="status-badge status-active"><span class="pulse-dot amber" style="width:5px;height:5px;"></span>下载中</div>
+            </div>
+          </div>
+          <div class="mini-task">
+            <img src="https://picsum.photos/seed/feiniao3/200/112" alt="">
+            <div class="mini-task-info">
+              <div class="mini-task-title">The Surprising Truth About Black Holes</div>
+              <div class="status-badge status-done"><span></span>已完成</div>
+            </div>
+          </div>
+          <div class="mini-task">
+            <img src="https://picsum.photos/seed/feiniao4/200/112" alt="">
+            <div class="mini-task-info">
+              <div class="mini-task-title">北京胡同深处的百年老店探访</div>
+              <div class="status-badge status-fail">失败 · 412</div>
+            </div>
+          </div>
+          <div class="mini-task">
+            <img src="https://picsum.photos/seed/feiniao5/200/112" alt="">
+            <div class="mini-task-info">
+              <div class="mini-task-title">打卡上海最美日落摄影机位合集</div>
+              <div class="status-badge status-done">已完成</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 任务 PAGE ===== -->
+    <div class="page" id="page-tasks">
+      <div style="display:flex;align-items:baseline;gap:10px;">
+        <h1 class="page-title">任务</h1>
+        <span class="page-sub">下载队列与进度管理</span>
+      </div>
+
+      <div class="kpi-grid" style="margin-top:20px;">
+        <div class="kpi-card">
+          <div class="kpi-label">今日下载量</div>
+          <div class="kpi-value">23</div>
+          <div class="kpi-sub">较昨日 +8</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">当前总速度</div>
+          <div class="kpi-value" style="font-size:20px;">8.4 MB/s</div>
+          <div class="kpi-sub">2 个任务并行</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">进行中</div>
+          <div class="kpi-value">2</div>
+          <div class="kpi-sub">活跃线程</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">队列等待</div>
+          <div class="kpi-value">1</div>
+          <div class="kpi-sub">待处理</div>
+        </div>
+      </div>
+
+      <div class="filter-chips">
+        <div class="chip active">全部</div>
+        <div class="chip" onclick="activateChip(this)">进行中</div>
+        <div class="chip" onclick="activateChip(this)">等待</div>
+        <div class="chip" onclick="activateChip(this)">失败</div>
+      </div>
+
+      <div class="task-group-label">🔄 进行中 (2)</div>
+      <div class="task-card active-task">
+        <img class="task-thumb" src="https://picsum.photos/seed/feiniao2/192/108" alt="">
+        <div class="task-info">
+          <div class="task-title">犯罪心理学的边界 — 罗翔教授专访全集（完整版）</div>
+          <div class="task-meta" style="display:flex;align-items:center;gap:8px;">
+            <span class="pulse-dot amber"></span>
+            <span>5.2 MB/s · 1080p · MP4</span>
+            <span>·</span>
+            <span>预计 3:42</span>
+          </div>
+          <div class="task-progress-bar">
+            <div class="task-progress-fill" style="width:62%"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">62% · 1.2 GB / 1.9 GB</div>
+        </div>
+        <svg class="sparkline-area" viewBox="0 0 80 40" preserveAspectRatio="none">
+          <polyline points="0,30 8,25 16,28 24,18 32,22 40,15 48,20 56,12 64,16 72,10 80,14" fill="none" stroke="#D97706" stroke-width="1.5" stroke-linejoin="round"/>
+          <polyline points="0,40 0,30 8,25 16,28 24,18 32,22 40,15 48,20 56,12 64,16 72,10 80,14 80,40" fill="rgba(217,119,6,0.08)"/>
+        </svg>
+      </div>
+
+      <div class="task-card active-task">
+        <img class="task-thumb" src="https://picsum.photos/seed/feiniao6/192/108" alt="">
+        <div class="task-info">
+          <div class="task-title">The Speed of Light is NOT About Light — Veritasium</div>
+          <div class="task-meta" style="display:flex;align-items:center;gap:8px;">
+            <span class="pulse-dot amber"></span>
+            <span>3.1 MB/s · 1080p · MP4</span>
+            <span>·</span>
+            <span>预计 6:10</span>
+          </div>
+          <div class="task-progress-bar">
+            <div class="task-progress-fill" style="width:31%"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">31% · 480 MB / 1.5 GB</div>
+        </div>
+        <svg class="sparkline-area" viewBox="0 0 80 40" preserveAspectRatio="none">
+          <polyline points="0,35 8,30 16,33 24,26 32,29 40,22 48,28 56,18 64,24 72,16 80,20" fill="none" stroke="#D97706" stroke-width="1.5" stroke-linejoin="round"/>
+          <polyline points="0,40 0,35 8,30 16,33 24,26 32,29 40,22 48,28 56,18 64,24 72,16 80,20 80,40" fill="rgba(217,119,6,0.08)"/>
+        </svg>
+      </div>
+
+      <div class="task-group-label">⏳ 等待中 (1)</div>
+      <div class="task-card">
+        <img class="task-thumb" src="https://picsum.photos/seed/feiniao7/192/108" alt="">
+        <div class="task-info">
+          <div class="task-title">TechLinked — This Week in Tech: AI编辑器大战</div>
+          <div class="task-meta">等待中 · 720p · MP4 · 排队第 1 位</div>
+          <div class="task-progress-bar"><div class="task-progress-fill" style="width:0%"></div></div>
+        </div>
+        <span class="status-badge status-wait">等待</span>
+      </div>
+
+      <div class="task-group-label">✅ 已完成今天 (3)</div>
+      <div class="task-card" style="opacity:0.75;">
+        <img class="task-thumb" src="https://picsum.photos/seed/feiniao1/192/108" alt="">
+        <div class="task-info">
+          <div class="task-title">为什么99%的人都不理解爱因斯坦的相对论 — 老高与小茉</div>
+          <div class="task-meta">1080p · 1.1 GB · 完成于 14:23</div>
+        </div>
+        <span class="status-badge status-done">✓ 完成</span>
+      </div>
+      <div class="task-card" style="opacity:0.75;">
+        <img class="task-thumb" src="https://picsum.photos/seed/feiniao5/192/108" alt="">
+        <div class="task-info">
+          <div class="task-title">打卡上海最美日落摄影机位合集</div>
+          <div class="task-meta">1080p · 680 MB · 完成于 11:05</div>
+        </div>
+        <span class="status-badge status-done">✓ 完成</span>
+      </div>
+      <div class="task-card" style="opacity:0.75;">
+        <img class="task-thumb" src="https://picsum.photos/seed/feiniao8/192/108" alt="">
+        <div class="task-info">
+          <div class="task-title">一只小猫咪 Vlog — 深夜撸猫解压合集</div>
+          <div class="task-meta">1080p · 230 MB · 完成于 09:44</div>
+        </div>
+        <span class="status-badge status-done">✓ 完成</span>
+      </div>
+
+      <div class="task-group-label" style="color:var(--danger);">❌ 失败 (1)</div>
+      <div class="task-card" style="border-color:rgba(220,38,38,0.2);">
+        <img class="task-thumb" src="https://picsum.photos/seed/feiniao4/192/108" alt="">
+        <div class="task-info">
+          <div class="task-title">北京胡同深处的百年老店探访记录</div>
+          <div class="task-meta" style="color:var(--danger);">❌ 错误 412 — 服务器限流，建议更换代理</div>
+        </div>
+        <button class="amber-btn" style="font-size:11px;padding:6px 12px;">重试</button>
+      </div>
+    </div>
+
+    <!-- ===== 订阅 PAGE ===== -->
+    <!-- ⚡ NEW vs v1: Entire subscriptions system is new -->
+    <div class="page" id="page-subscriptions">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <h1 class="page-title">订阅</h1>
+          <p class="page-sub">追踪频道，自动下载新内容</p>
+        </div>
+        <button class="amber-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          添加订阅
+        </button>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <input type="text" class="search-input" placeholder="搜索订阅频道...">
+        <button class="icon-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        </button>
+      </div>
+
+      <div class="sub-grid">
+        <!-- 老高与小茉 - YouTube - has new -->
+        <div class="sub-card card">
+          <div class="sub-avatar-row">
+            <img class="sub-avatar" src="https://picsum.photos/seed/avatar1/80/80" alt="">
+            <div>
+              <div class="sub-name">老高与小茉</div>
+              <div class="sub-handle">@laogao</div>
+            </div>
+            <span class="platform-badge badge-yt" style="margin-left:auto;">YouTube</span>
+          </div>
+          <div class="sub-meta">上次更新: 3 小时前</div>
+          <div class="sub-new-pill">
+            <span class="pulse-dot amber" style="width:5px;height:5px;"></span>
+            今日 2 个新视频
+          </div>
+          <div class="sub-toggle-row">
+            <span class="sub-toggle-label">🔄 自动追更</span>
+            <button class="toggle-sm on"></button>
+          </div>
+          <div class="sub-hover-actions">
+            <div class="action-btn-sm">查看作品</div>
+            <div class="action-btn-sm">暂停订阅</div>
+            <div class="action-btn-sm danger">移除</div>
+          </div>
+        </div>
+
+        <!-- 罗翔说刑法 - B站 - has new -->
+        <div class="sub-card card">
+          <div class="sub-avatar-row">
+            <img class="sub-avatar" src="https://picsum.photos/seed/avatar2/80/80" alt="">
+            <div>
+              <div class="sub-name">罗翔说刑法</div>
+              <div class="sub-handle">@luoxiang</div>
+            </div>
+            <span class="platform-badge badge-bili" style="margin-left:auto;">B站</span>
+          </div>
+          <div class="sub-meta">上次更新: 1 天前</div>
+          <div class="sub-new-pill">
+            <span class="pulse-dot amber" style="width:5px;height:5px;"></span>
+            今日 1 个新视频
+          </div>
+          <div class="sub-toggle-row">
+            <span class="sub-toggle-label">🔄 自动追更</span>
+            <button class="toggle-sm on"></button>
+          </div>
+          <div class="sub-hover-actions">
+            <div class="action-btn-sm">查看作品</div>
+            <div class="action-btn-sm">暂停订阅</div>
+            <div class="action-btn-sm danger">移除</div>
+          </div>
+        </div>
+
+        <!-- 一只小猫咪 - 抖音 -->
+        <div class="sub-card card">
+          <div class="sub-avatar-row">
+            <img class="sub-avatar" src="https://picsum.photos/seed/avatar3/80/80" alt="">
+            <div>
+              <div class="sub-name">一只小猫咪</div>
+              <div class="sub-handle">@xiao_mao_mimi</div>
+            </div>
+            <span class="platform-badge badge-dy" style="margin-left:auto;">抖音</span>
+          </div>
+          <div class="sub-meta">上次更新: 2 小时前</div>
+          <div style="margin-top:6px;height:22px;"></div>
+          <div class="sub-toggle-row">
+            <span class="sub-toggle-label">🔄 自动追更</span>
+            <button class="toggle-sm off"></button>
+          </div>
+          <div class="sub-hover-actions">
+            <div class="action-btn-sm">查看作品</div>
+            <div class="action-btn-sm">暂停订阅</div>
+            <div class="action-btn-sm danger">移除</div>
+          </div>
+        </div>
+
+        <!-- 小红薯 - 小红书 -->
+        <div class="sub-card card">
+          <div class="sub-avatar-row">
+            <img class="sub-avatar" src="https://picsum.photos/seed/avatar4/80/80" alt="">
+            <div>
+              <div class="sub-name">小红薯12345</div>
+              <div class="sub-handle">@xiaohongshu_fan</div>
+            </div>
+            <span class="platform-badge badge-xhs" style="margin-left:auto;">小红书</span>
+          </div>
+          <div class="sub-meta">上次更新: 5 小时前</div>
+          <div style="margin-top:6px;height:22px;"></div>
+          <div class="sub-toggle-row">
+            <span class="sub-toggle-label">🔄 自动追更</span>
+            <button class="toggle-sm on"></button>
+          </div>
+          <div class="sub-hover-actions">
+            <div class="action-btn-sm">查看作品</div>
+            <div class="action-btn-sm">暂停订阅</div>
+            <div class="action-btn-sm danger">移除</div>
+          </div>
+        </div>
+
+        <!-- Veritasium - YouTube -->
+        <div class="sub-card card">
+          <div class="sub-avatar-row">
+            <img class="sub-avatar" src="https://picsum.photos/seed/avatar5/80/80" alt="">
+            <div>
+              <div class="sub-name">Veritasium</div>
+              <div class="sub-handle">@veritasium</div>
+            </div>
+            <span class="platform-badge badge-yt" style="margin-left:auto;">YouTube</span>
+          </div>
+          <div class="sub-meta">上次更新: 3 天前</div>
+          <div style="margin-top:6px;height:22px;"></div>
+          <div class="sub-toggle-row">
+            <span class="sub-toggle-label">🔄 自动追更</span>
+            <button class="toggle-sm on"></button>
+          </div>
+          <div class="sub-hover-actions">
+            <div class="action-btn-sm">查看作品</div>
+            <div class="action-btn-sm">暂停订阅</div>
+            <div class="action-btn-sm danger">移除</div>
+          </div>
+        </div>
+
+        <!-- TechLinked - YouTube -->
+        <div class="sub-card card">
+          <div class="sub-avatar-row">
+            <img class="sub-avatar" src="https://picsum.photos/seed/avatar6/80/80" alt="">
+            <div>
+              <div class="sub-name">TechLinked</div>
+              <div class="sub-handle">@techlinked</div>
+            </div>
+            <span class="platform-badge badge-yt" style="margin-left:auto;">YouTube</span>
+          </div>
+          <div class="sub-meta">上次更新: 1 天前</div>
+          <div style="margin-top:6px;height:22px;"></div>
+          <div class="sub-toggle-row">
+            <span class="sub-toggle-label">🔄 自动追更</span>
+            <button class="toggle-sm off"></button>
+          </div>
+          <div class="sub-hover-actions">
+            <div class="action-btn-sm">查看作品</div>
+            <div class="action-btn-sm">暂停订阅</div>
+            <div class="action-btn-sm danger">移除</div>
+          </div>
+        </div>
+
+        <!-- 一闪一闪小猫 - 抖音 -->
+        <div class="sub-card card">
+          <div class="sub-avatar-row">
+            <img class="sub-avatar" src="https://picsum.photos/seed/avatar7/80/80" alt="">
+            <div>
+              <div class="sub-name">一闪一闪小猫</div>
+              <div class="sub-handle">@xingguang_mao</div>
+            </div>
+            <span class="platform-badge badge-dy" style="margin-left:auto;">抖音</span>
+          </div>
+          <div class="sub-meta">上次更新: 6 小时前</div>
+          <div style="margin-top:6px;height:22px;"></div>
+          <div class="sub-toggle-row">
+            <span class="sub-toggle-label">🔄 自动追更</span>
+            <button class="toggle-sm on"></button>
+          </div>
+          <div class="sub-hover-actions">
+            <div class="action-btn-sm">查看作品</div>
+            <div class="action-btn-sm">暂停订阅</div>
+            <div class="action-btn-sm danger">移除</div>
+          </div>
+        </div>
+
+        <!-- 综合体育 - B站 -->
+        <div class="sub-card card">
+          <div class="sub-avatar-row">
+            <img class="sub-avatar" src="https://picsum.photos/seed/avatar8/80/80" alt="">
+            <div>
+              <div class="sub-name">综合体育</div>
+              <div class="sub-handle">@sports_bilibili</div>
+            </div>
+            <span class="platform-badge badge-bili" style="margin-left:auto;">B站</span>
+          </div>
+          <div class="sub-meta">上次更新: 12 小时前</div>
+          <div style="margin-top:6px;height:22px;"></div>
+          <div class="sub-toggle-row">
+            <span class="sub-toggle-label">🔄 自动追更</span>
+            <button class="toggle-sm on"></button>
+          </div>
+          <div class="sub-hover-actions">
+            <div class="action-btn-sm">查看作品</div>
+            <div class="action-btn-sm">暂停订阅</div>
+            <div class="action-btn-sm danger">移除</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 媒体库 PAGE ===== -->
+    <!-- ⚡ NEW vs v1: Full media library with drawer, filter sidebar, grid view -->
+    <div class="page" id="page-library">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px;">
+        <h1 class="page-title">媒体库</h1>
+        <span class="page-sub">已下载的全部内容</span>
+      </div>
+
+      <div class="library-layout">
+        <!-- Filter sidebar -->
+        <div class="library-filter">
+          <div class="filter-section-title">平台</div>
+          <label class="filter-check"><input type="checkbox" checked> <label>YouTube</label></label>
+          <label class="filter-check"><input type="checkbox" checked> <label>B站</label></label>
+          <label class="filter-check"><input type="checkbox" checked> <label>抖音</label></label>
+          <label class="filter-check"><input type="checkbox" checked> <label>小红书</label></label>
+          <label class="filter-check"><input type="checkbox"> <label style="color:#A8A29E;">Pornhub</label></label>
+
+          <div class="filter-section-title" style="margin-top:16px;">作者</div>
+          <div style="font-size:12px;color:var(--muted);line-height:2;">
+            <div style="cursor:pointer;padding:2px 0;" onclick="this.style.color='var(--amber-start)'">老高与小茉</div>
+            <div style="cursor:pointer;padding:2px 0;" onclick="this.style.color='var(--amber-start)'">罗翔说刑法</div>
+            <div style="cursor:pointer;padding:2px 0;" onclick="this.style.color='var(--amber-start)'">Veritasium</div>
+            <div style="cursor:pointer;padding:2px 0;" onclick="this.style.color='var(--amber-start)'">TechLinked</div>
+            <div style="cursor:pointer;padding:2px 0;" onclick="this.style.color='var(--amber-start)'">一只小猫咪</div>
+          </div>
+
+          <div class="filter-section-title" style="margin-top:16px;">日期</div>
+          <div style="font-size:12px;color:var(--muted);">
+            <div style="cursor:pointer;padding:3px 0;" onclick="this.style.color='var(--amber-start)'">今天</div>
+            <div style="cursor:pointer;padding:3px 0;" onclick="this.style.color='var(--amber-start)'">本周</div>
+            <div style="cursor:pointer;padding:3px 0;" onclick="this.style.color='var(--amber-start)'">本月</div>
+          </div>
+        </div>
+
+        <!-- Main grid area -->
+        <div class="library-main">
+          <div class="library-toolbar">
+            <input type="text" class="search-input" placeholder="搜索标题、作者、标签...">
+            <button class="icon-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+            <button class="icon-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+            <select class="sort-select">
+              <option>最新下载</option><option>最旧下载</option><option>文件大小</option><option>时长</option>
+            </select>
+          </div>
+
+          <div class="video-grid">
+            <!-- Video cards 1-12 -->
+            <div class="video-card" onclick="openDrawer(0)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao1/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">为什么99%的人都不理解爱因斯坦的相对论</div>
+                <div class="video-meta-row">老高与小茉 · 32:14 · 2 天前</div>
+                <div class="video-tags"><span class="tag-pill">科学</span><span class="tag-pill">物理</span><span class="tag-pill">YouTube</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(1)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao2/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">犯罪心理学的边界 — 刑法的灰色地带</div>
+                <div class="video-meta-row">罗翔说刑法 · 28:06 · 1 天前</div>
+                <div class="video-tags"><span class="tag-pill">刑法</span><span class="tag-pill">教育</span><span class="tag-pill">B站</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(2)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao3/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">The Surprising Truth About Black Holes</div>
+                <div class="video-meta-row">Veritasium · 22:48 · 3 天前</div>
+                <div class="video-tags"><span class="tag-pill">科学</span><span class="tag-pill">YouTube</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(3)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao5/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">打卡上海最美日落摄影机位合集</div>
+                <div class="video-meta-row">小红薯12345 · 15:33 · 今天</div>
+                <div class="video-tags"><span class="tag-pill">摄影</span><span class="tag-pill">小红书</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(4)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao8/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">深夜撸猫解压合集 Vol.12</div>
+                <div class="video-meta-row">一只小猫咪 · 8:22 · 今天</div>
+                <div class="video-tags"><span class="tag-pill">猫咪</span><span class="tag-pill">抖音</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(5)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao9/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">This Week in Tech — AI编辑器大战全解析</div>
+                <div class="video-meta-row">TechLinked · 12:05 · 2 天前</div>
+                <div class="video-tags"><span class="tag-pill">科技</span><span class="tag-pill">AI</span><span class="tag-pill">YouTube</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(6)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao10/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">NBA总决赛G7精彩集锦 2025</div>
+                <div class="video-meta-row">综合体育 · 18:44 · 5 天前</div>
+                <div class="video-tags"><span class="tag-pill">体育</span><span class="tag-pill">B站</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(7)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao11/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">一闪一闪小猫 — 星空下的猫猫打架</div>
+                <div class="video-meta-row">一闪一闪小猫 · 5:14 · 1 天前</div>
+                <div class="video-tags"><span class="tag-pill">猫咪</span><span class="tag-pill">抖音</span><span class="tag-pill">搞笑</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(8)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao12/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">Why Most People Are Wrong About Evolution</div>
+                <div class="video-meta-row">Veritasium · 35:22 · 1 周前</div>
+                <div class="video-tags"><span class="tag-pill">科学</span><span class="tag-pill">YouTube</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(9)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao13/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">民法典婚姻家庭编深度解析</div>
+                <div class="video-meta-row">罗翔说刑法 · 41:08 · 3 天前</div>
+                <div class="video-tags"><span class="tag-pill">法律</span><span class="tag-pill">解说</span><span class="tag-pill">B站</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(10)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao14/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">青岛早市探店 — 最接地气的早餐</div>
+                <div class="video-meta-row">小红薯12345 · 11:50 · 4 天前</div>
+                <div class="video-tags"><span class="tag-pill">美食</span><span class="tag-pill">小红书</span><span class="tag-pill">Vlog</span></div>
+              </div>
+            </div>
+
+            <div class="video-card" onclick="openDrawer(11)">
+              <div class="video-thumb-wrap">
+                <img src="https://picsum.photos/seed/feiniao15/240/135" alt="">
+                <div class="video-play-overlay"><div class="play-circle"><svg width="12" height="12" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+              </div>
+              <div class="video-info">
+                <div class="video-title">月球背面真的有什么？老高亲测解密</div>
+                <div class="video-meta-row">老高与小茉 · 27:39 · 6 天前</div>
+                <div class="video-tags"><span class="tag-pill">宇宙</span><span class="tag-pill">科普</span><span class="tag-pill">YouTube</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 设置 PAGE ===== -->
+    <div class="page" id="page-settings">
+      <div style="margin-bottom:20px;">
+        <h1 class="page-title">设置</h1>
+        <p class="page-sub">应用配置与扩展管理</p>
+      </div>
+
+      <div class="settings-layout">
+        <div class="settings-sidebar">
+          <div class="settings-nav-item" onclick="switchSettingsTab(this,'general')">通用</div>
+          <div class="settings-nav-item" onclick="switchSettingsTab(this,'network')">网络</div>
+          <div class="settings-nav-item active" onclick="switchSettingsTab(this,'extension')">浏览器扩展</div>
+          <div class="settings-nav-item" onclick="switchSettingsTab(this,'subscription')">订阅</div>
+          <div class="settings-nav-item" onclick="switchSettingsTab(this,'medialib')">媒体库</div>
+          <div class="settings-nav-item" onclick="switchSettingsTab(this,'about')">关于</div>
+        </div>
+
+        <div class="settings-content" id="settingsContent">
+          <!-- Extension tab (default) -->
+          <div id="tab-extension">
+            <div class="settings-section">
+              <div class="settings-section-title">浏览器扩展</div>
+              <div class="settings-section-sub">在浏览器中右键即可发送到飞鸟下载器</div>
+
+              <div class="extension-hero">
+                <div class="extension-mock-screenshot">
+                  <div class="browser-mock-bar">
+                    <div class="browser-dot" style="background:#FF5F57;"></div>
+                    <div class="browser-dot" style="background:#FFBD2E;"></div>
+                    <div class="browser-dot" style="background:#28C840;"></div>
+                  </div>
+                  <div class="mock-context-menu">
+                    <div class="mock-menu-item">在新标签打开</div>
+                    <div class="mock-menu-item">复制链接</div>
+                    <div class="mock-menu-item">检查</div>
+                    <div class="mock-menu-item highlighted">🐦 用飞鸟下载</div>
+                    <div class="mock-menu-item">另存为...</div>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:16px;font-weight:700;margin-bottom:6px;">右键一下，立即下载</div>
+                  <div style="font-size:13px;color:var(--muted);line-height:1.6;">在任意网页上右键视频或链接，<br>直接发送给飞鸟下载器，零复制粘贴。</div>
+                  <div style="margin-top:12px;display:flex;align-items:center;gap:8px;">
+                    <span class="pulse-dot"></span>
+                    <span style="font-size:12px;color:var(--success);font-weight:500;">扩展未安装</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="browser-install-grid">
+                <div class="browser-install-card">
+                  <div class="browser-icon" style="background:linear-gradient(135deg,#EA4335,#FBBC04,#34A853,#4285F4);display:flex;align-items:center;justify-content:center;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="4"/><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z" fill="none" stroke="white" stroke-width="1.5"/></svg>
+                  </div>
+                  <div style="font-size:12.5px;font-weight:600;margin-bottom:4px;">Chrome</div>
+                  <button class="amber-btn" style="width:100%;padding:7px;font-size:11.5px;justify-content:center;">安装</button>
+                </div>
+                <div class="browser-install-card">
+                  <div class="browser-icon" style="background:linear-gradient(135deg,#0078D4,#50E6FF);display:flex;align-items:center;justify-content:center;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 12C3 7 7 3 12 3s9 4 9 9-4 9-9 9-9-4-9-9z" fill="white" opacity="0.9"/><path d="M12 3C8 3 5 6 4 10h16c-1-4-4-7-8-7z" fill="white"/></svg>
+                  </div>
+                  <div style="font-size:12.5px;font-weight:600;margin-bottom:4px;">Edge</div>
+                  <button class="amber-btn" style="width:100%;padding:7px;font-size:11.5px;justify-content:center;">安装</button>
+                </div>
+                <div class="browser-install-card">
+                  <div class="browser-icon" style="background:linear-gradient(135deg,#006CFF,#1FAAFF);display:flex;align-items:center;justify-content:center;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+                  </div>
+                  <div style="font-size:12.5px;font-weight:600;margin-bottom:4px;">Safari</div>
+                  <button style="width:100%;padding:7px;font-size:11.5px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer;">安装</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="how-it-works">
+              <div style="font-size:14px;font-weight:600;margin-bottom:16px;">工作原理</div>
+              <div class="how-step">
+                <div class="step-num">1</div>
+                <div class="step-text">
+                  <h4>安装扩展</h4>
+                  <p>一键从浏览器商店安装飞鸟扩展，无需注册账号</p>
+                </div>
+              </div>
+              <div class="how-step">
+                <div class="step-num">2</div>
+                <div class="step-text">
+                  <h4>右键任意视频</h4>
+                  <p>在 YouTube、B站等平台右键视频，点击「用飞鸟下载」</p>
+                </div>
+              </div>
+              <div class="how-step">
+                <div class="step-num">3</div>
+                <div class="step-text">
+                  <h4>飞鸟自动处理</h4>
+                  <p>链接自动发送到飞鸟下载器，在后台完成下载，存入媒体库</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Menu bar hint -->
+            <div style="background:#F9F9F8;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:20px;display:flex;align-items:center;gap:12px;">
+              <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--amber-start),var(--amber-end));display:flex;align-items:center;justify-content:center;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:600;">菜单栏模式</div>
+                <div style="font-size:12px;color:var(--muted);">在顶部标题栏开启「在菜单栏运行」，飞鸟将在系统菜单栏常驻</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Other tabs (placeholder) -->
+          <div id="tab-general" style="display:none;">
+            <div class="settings-section-title">通用</div>
+            <div class="settings-section-sub">通用设置内容待填充</div>
+          </div>
+          <div id="tab-network" style="display:none;">
+            <div class="settings-section-title">网络</div>
+            <div class="settings-section-sub">代理、并发数等网络配置</div>
+          </div>
+          <div id="tab-subscription" style="display:none;">
+            <div class="settings-section-title">订阅</div>
+            <div class="settings-section-sub">自动检查间隔、下载策略配置</div>
+          </div>
+          <div id="tab-medialib" style="display:none;">
+            <div class="settings-section-title">媒体库</div>
+            <div class="settings-section-sub">存储路径、文件命名规则</div>
+          </div>
+          <div id="tab-about" style="display:none;">
+            <div class="settings-section-title">关于飞鸟</div>
+            <div class="settings-section-sub" style="margin-bottom:0;">版本 1.1.0 · 基于 yt-dlp</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /app-body -->
+
+<!-- Drawer backdrop + drawer -->
+<!-- ⚡ NEW vs v1: Detail drawer for media library items -->
+<div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <span class="drawer-title">视频详情</span>
+    <button class="drawer-close" onclick="closeDrawer()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body" id="drawerBody">
+    <!-- Filled by JS -->
+  </div>
+</div>
+
+<script>
+// Page navigation
+function activatePage(pageId, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + pageId).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (navEl) {
+    navEl.classList.add('active');
+  } else {
+    const found = document.querySelector('[data-page="' + pageId + '"]');
+    if (found) found.classList.add('active');
+  }
+}
+
+// Chip filter
+function activateChip(el) {
+  el.closest('.filter-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// Source pill switch
+function switchPill(el) {
+  el.closest('.source-pill-group').querySelectorAll('.source-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// Language dropdown
+function toggleLang() {
+  document.getElementById('langMenu').classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.lang-dropdown-wrap')) {
+    document.getElementById('langMenu').classList.remove('open');
+  }
+});
+
+// Menubar toggle
+function toggleMenubar(btn) {
+  btn.classList.toggle('on');
+}
+
+// Settings tabs
+function switchSettingsTab(navEl, tabId) {
+  document.querySelectorAll('.settings-nav-item').forEach(n => n.classList.remove('active'));
+  navEl.classList.add('active');
+  document.querySelectorAll('#settingsContent > div').forEach(t => t.style.display = 'none');
+  const el = document.getElementById('tab-' + tabId);
+  if (el) el.style.display = 'block';
+}
+
+// Video data for drawer
+const videoData = [
+  { title: '为什么99%的人都不理解爱因斯坦的相对论', author: '老高与小茉', duration: '32:14', platform: 'YouTube', size: '1.1 GB', date: '2026-05-19', path: '~/Movies/飞鸟/老高与小茉/爱因斯坦的相对论.mp4', url: 'https://youtube.com/watch?v=abc123', tags: ['科学','物理'], img: 'feiniao1' },
+  { title: '犯罪心理学的边界 — 刑法的灰色地带', author: '罗翔说刑法', duration: '28:06', platform: 'B站', size: '890 MB', date: '2026-05-20', path: '~/Movies/飞鸟/罗翔/犯罪心理学.mp4', url: 'https://bilibili.com/video/BV1xx', tags: ['刑法','教育'], img: 'feiniao2' },
+  { title: 'The Surprising Truth About Black Holes', author: 'Veritasium', duration: '22:48', platform: 'YouTube', size: '780 MB', date: '2026-05-18', path: '~/Movies/飞鸟/Veritasium/Black Holes.mp4', url: 'https://youtube.com/watch?v=xyz456', tags: ['科学'], img: 'feiniao3' },
+  { title: '打卡上海最美日落摄影机位合集', author: '小红薯12345', duration: '15:33', platform: '小红书', size: '420 MB', date: '2026-05-21', path: '~/Movies/飞鸟/小红书/上海日落.mp4', url: 'https://xiaohongshu.com/xxx', tags: ['摄影'], img: 'feiniao5' },
+  { title: '深夜撸猫解压合集 Vol.12', author: '一只小猫咪', duration: '8:22', platform: '抖音', size: '230 MB', date: '2026-05-21', path: '~/Movies/飞鸟/抖音/撸猫Vol12.mp4', url: 'https://douyin.com/xxx', tags: ['猫咪'], img: 'feiniao8' },
+  { title: 'This Week in Tech — AI编辑器大战', author: 'TechLinked', duration: '12:05', platform: 'YouTube', size: '340 MB', date: '2026-05-19', path: '~/Movies/飞鸟/TechLinked/AI编辑器.mp4', url: 'https://youtube.com/watch?v=tech1', tags: ['科技','AI'], img: 'feiniao9' },
+  { title: 'NBA总决赛G7精彩集锦 2025', author: '综合体育', duration: '18:44', platform: 'B站', size: '560 MB', date: '2026-05-16', path: '~/Movies/飞鸟/体育/NBA G7.mp4', url: 'https://bilibili.com/video/BV2yy', tags: ['体育'], img: 'feiniao10' },
+  { title: '一闪一闪小猫 — 星空下猫猫打架', author: '一闪一闪小猫', duration: '5:14', platform: '抖音', size: '120 MB', date: '2026-05-20', path: '~/Movies/飞鸟/抖音/星空猫.mp4', url: 'https://douyin.com/yyy', tags: ['猫咪','搞笑'], img: 'feiniao11' },
+  { title: 'Why Most People Are Wrong About Evolution', author: 'Veritasium', duration: '35:22', platform: 'YouTube', size: '1.3 GB', date: '2026-05-14', path: '~/Movies/飞鸟/Veritasium/Evolution.mp4', url: 'https://youtube.com/watch?v=evo1', tags: ['科学'], img: 'feiniao12' },
+  { title: '民法典婚姻家庭编深度解析', author: '罗翔说刑法', duration: '41:08', platform: 'B站', size: '1.4 GB', date: '2026-05-18', path: '~/Movies/飞鸟/罗翔/民法典.mp4', url: 'https://bilibili.com/video/BV3zz', tags: ['法律','解说'], img: 'feiniao13' },
+  { title: '青岛早市探店 — 最接地气的早餐', author: '小红薯12345', duration: '11:50', platform: '小红书', size: '310 MB', date: '2026-05-17', path: '~/Movies/飞鸟/小红书/青岛早市.mp4', url: 'https://xiaohongshu.com/yyy', tags: ['美食','Vlog'], img: 'feiniao14' },
+  { title: '月球背面真的有什么？老高亲测解密', author: '老高与小茉', duration: '27:39', platform: 'YouTube', size: '950 MB', date: '2026-05-15', path: '~/Movies/飞鸟/老高与小茉/月球背面.mp4', url: 'https://youtube.com/watch?v=moon1', tags: ['宇宙','科普'], img: 'feiniao15' },
+];
+
+function openDrawer(idx) {
+  const v = videoData[idx];
+  const body = document.getElementById('drawerBody');
+  body.innerHTML = `
+    <div class="drawer-video-preview">
+      <img src="https://picsum.photos/seed/${v.img}/400/225" alt="">
+      <div class="play-overlay-lg">
+        <div class="play-circle-lg">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#1C1917"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:14px;font-weight:600;line-height:1.5;margin-bottom:14px;">${v.title}</div>
+    <div class="detail-row"><span class="detail-label">作者</span><span class="detail-value">${v.author}</span></div>
+    <div class="detail-row"><span class="detail-label">平台</span><span class="detail-value">${v.platform}</span></div>
+    <div class="detail-row"><span class="detail-label">时长</span><span class="detail-value" style="font-family:monospace;">${v.duration}</span></div>
+    <div class="detail-row"><span class="detail-label">文件大小</span><span class="detail-value" style="font-family:monospace;">${v.size}</span></div>
+    <div class="detail-row"><span class="detail-label">下载日期</span><span class="detail-value">${v.date}</span></div>
+    <div class="detail-row"><span class="detail-label">存储路径</span><span class="detail-value" style="font-size:11px;font-family:monospace;">${v.path}</span></div>
+    <div class="detail-row"><span class="detail-label">原始链接</span><span class="detail-value" style="font-size:11px;color:var(--amber-start);">${v.url}</span></div>
+    <div style="margin-top:14px;">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">标签</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${v.tags.map(t => `<span class="tag-pill" style="font-size:11px;padding:3px 9px;background:#F5F5F4;border-radius:7px;">${t}</span>`).join('')}
+        <span style="font-size:11px;padding:3px 9px;border-radius:7px;border:1px dashed var(--border);color:var(--muted);cursor:pointer;">+ 添加</span>
+      </div>
+    </div>
+    <div class="drawer-actions">
+      <button class="drawer-action-btn">📂 在 Finder 显示</button>
+      <button class="drawer-action-btn">🔗 打开原始链接</button>
+      <button class="drawer-action-btn">🔄 重新下载</button>
+      <button class="drawer-action-btn danger">🗑 删除文件</button>
+    </div>
+  `;
+  document.getElementById('drawerBackdrop').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawerBackdrop').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeDrawer();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>飞鸟下载器 v3 — 极简一键</title>
+
+  <!-- ⚡ NEW: Google Fonts — DM Sans for body clarity, DM Mono for numbers -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- ⚡ NEW: Lucide icons via CDN -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"DM Sans"', '"PingFang SC"', '"Noto Sans SC"', 'sans-serif'],
+            mono: ['"DM Mono"', '"SF Mono"', 'monospace'],
+          },
+          colors: {
+            stone: {
+              25:  '#FAFAF9',
+              50:  '#F5F5F4',
+              100: '#E7E5E4',
+              200: '#D6D3D1',
+              300: '#A8A29E',
+              400: '#78716C',
+              500: '#57534E',
+              600: '#44403C',
+              700: '#292524',
+              800: '#1C1917',
+              900: '#0C0A09',
+            },
+            amber: {
+              400: '#FBBF24',
+              500: '#F59E0B',
+              600: '#D97706',
+              700: '#B45309',
+            }
+          },
+          borderRadius: {
+            '2xl': '16px',
+            '3xl': '20px',
+          },
+          boxShadow: {
+            'card': '0 1px 3px rgba(0,0,0,0.04), 0 8px 28px -8px rgba(0,0,0,0.08)',
+            'card-hover': '0 2px 6px rgba(0,0,0,0.06), 0 14px 36px -8px rgba(0,0,0,0.12)',
+            'input': '0 1px 2px rgba(0,0,0,0.04), 0 4px 16px -4px rgba(0,0,0,0.06)',
+            'input-focus': '0 0 0 3px rgba(217,119,6,0.15), 0 1px 2px rgba(0,0,0,0.04)',
+            'sheet': '-8px 0 48px -8px rgba(0,0,0,0.14)',
+            'toast': '0 4px 24px -4px rgba(0,0,0,0.15)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- ⚡ NEW: Custom keyframes & utility classes for animations -->
+  <style>
+    /* === Keyframes === */
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-6px); }
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.85); }
+    }
+    @keyframes ring-pulse {
+      0%   { transform: scale(0.9); opacity: 0.7; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+    @keyframes progress-shine {
+      0%   { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slide-in-right {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slide-out-right {
+      from { transform: translateX(0); opacity: 1; }
+      to   { transform: translateX(100%); opacity: 0; }
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(8px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes amber-border-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,6,0.25); }
+      50%       { box-shadow: 0 0 0 4px rgba(217,119,6,0.08); }
+    }
+
+    /* === Utility classes === */
+    body {
+      font-family: 'DM Sans', 'PingFang SC', sans-serif;
+      background: #FAFAF9;
+      color: #0C0A09;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* macOS vibrancy-ish titlebar */
+    #titlebar {
+      -webkit-app-region: drag;
+      background: rgba(250,250,249,0.85);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+    }
+    #titlebar button, #titlebar select {
+      -webkit-app-region: no-drag;
+    }
+
+    .float-bird { animation: float 3.6s ease-in-out infinite; }
+
+    .pulse-dot {
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    .ring-out {
+      animation: ring-pulse 2.2s cubic-bezier(0.4,0,0.6,1) infinite;
+    }
+    .ring-out-d1 { animation-delay: 0.55s; }
+    .ring-out-d2 { animation-delay: 1.1s; }
+
+    .progress-shine {
+      background: linear-gradient(
+        90deg,
+        #D97706 0%,
+        #EAB308 40%,
+        #F59E0B 50%,
+        #CA8A04 60%,
+        #D97706 100%
+      );
+      background-size: 200% 100%;
+      animation: progress-shine 2.2s linear infinite;
+    }
+
+    .amber-border-active {
+      border-color: rgba(217,119,6,0.5) !important;
+      animation: amber-border-pulse 2.4s ease-in-out infinite;
+    }
+
+    .fade-in { animation: fade-in 0.35s ease both; }
+
+    .settings-sheet {
+      animation: slide-in-right 0.28s cubic-bezier(0.32,0.72,0,1) both;
+    }
+    .settings-sheet.closing {
+      animation: slide-out-right 0.22s cubic-bezier(0.32,0.72,0,1) both;
+    }
+
+    .toast-enter { animation: toast-in 0.28s cubic-bezier(0.32,0.72,0,1) both; }
+
+    /* Tabular numerals everywhere numeric */
+    .num, [data-num], .tabnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+    /* Input hero */
+    .hero-input {
+      background: #FFFFFF;
+      border: 1.5px solid #E7E5E4;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px -4px rgba(0,0,0,0.06);
+      transition: box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .hero-input:focus-within {
+      border-color: rgba(217,119,6,0.5);
+      box-shadow: 0 0 0 3px rgba(217,119,6,0.12), 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    /* Amber gradient button */
+    .btn-amber {
+      background: linear-gradient(135deg, #D97706 0%, #CA8A04 50%, #EAB308 100%);
+      color: white;
+      font-weight: 600;
+      transition: filter 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+      box-shadow: 0 1px 3px rgba(180,83,9,0.3), 0 4px 12px -2px rgba(180,83,9,0.2);
+    }
+    .btn-amber:hover {
+      filter: brightness(1.06);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(180,83,9,0.35), 0 6px 18px -2px rgba(180,83,9,0.25);
+    }
+    .btn-amber:active {
+      transform: translateY(0);
+      filter: brightness(0.97);
+    }
+
+    /* Glass sheet */
+    .glass-sheet {
+      background: rgba(250,250,249,0.92);
+      backdrop-filter: blur(32px) saturate(180%);
+      -webkit-backdrop-filter: blur(32px) saturate(180%);
+    }
+
+    /* Card hover */
+    .task-card {
+      transition: box-shadow 0.18s ease, transform 0.18s ease;
+    }
+    .task-card:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 14px 40px -8px rgba(0,0,0,0.12);
+      transform: translateY(-1px);
+    }
+    .task-card .card-actions {
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .task-card:hover .card-actions {
+      opacity: 1;
+    }
+
+    /* Pill toggle */
+    .pill-toggle {
+      background: rgba(231,229,228,0.5);
+      padding: 3px;
+      border-radius: 9999px;
+      display: inline-flex;
+      gap: 2px;
+    }
+    .pill-toggle button {
+      padding: 3px 11px;
+      border-radius: 9999px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #78716C;
+      transition: all 0.18s ease;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      white-space: nowrap;
+    }
+    .pill-toggle button.active {
+      background: #FFFFFF;
+      color: #0C0A09;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* Settings section header */
+    .settings-section-title {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #A8A29E;
+      padding: 0 4px;
+      margin-bottom: 6px;
+      margin-top: 20px;
+    }
+
+    /* Scrollbar thin */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
+
+    /* Platform badge */
+    .badge-platform {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .badge-yt    { background: rgba(255,0,0,0.08); color: #DC2626; }
+    .badge-bili  { background: rgba(0,161,214,0.1); color: #0284C7; }
+    .badge-dy    { background: rgba(0,0,0,0.07); color: #292524; }
+    .badge-ph    { background: rgba(255,134,0,0.1); color: #D97706; }
+    .badge-wm    { background: rgba(22,163,74,0.1); color: #16A34A; }
+    .badge-fail  { background: rgba(220,38,38,0.08); color: #DC2626; }
+    .badge-cancel { background: rgba(120,113,108,0.1); color: #78716C; }
+
+    /* Select element reset */
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23D97706' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 26px !important;
+      cursor: pointer;
+    }
+
+    /* Stagger children */
+    .stagger > * { animation: fade-in 0.35s ease both; }
+    .stagger > *:nth-child(1) { animation-delay: 0.04s; }
+    .stagger > *:nth-child(2) { animation-delay: 0.09s; }
+    .stagger > *:nth-child(3) { animation-delay: 0.14s; }
+    .stagger > *:nth-child(4) { animation-delay: 0.19s; }
+    .stagger > *:nth-child(5) { animation-delay: 0.24s; }
+    .stagger > *:nth-child(6) { animation-delay: 0.29s; }
+    .stagger > *:nth-child(7) { animation-delay: 0.34s; }
+    .stagger > *:nth-child(8) { animation-delay: 0.39s; }
+    .stagger > *:nth-child(9) { animation-delay: 0.44s; }
+    .stagger > *:nth-child(10) { animation-delay: 0.49s; }
+    .stagger > *:nth-child(11) { animation-delay: 0.54s; }
+    .stagger > *:nth-child(12) { animation-delay: 0.59s; }
+  </style>
+</head>
+
+<body class="min-h-screen overflow-x-hidden">
+
+  <!-- ⚡ NEW: Settings sheet overlay backdrop -->
+  <div id="settings-backdrop"
+       class="fixed inset-0 z-40 bg-stone-900/20 backdrop-blur-[2px] hidden"
+       onclick="closeSettings()"></div>
+
+  <!-- ⚡ NEW: Settings sheet (right panel, 400px, full height) -->
+  <aside id="settings-sheet"
+         class="fixed top-0 right-0 h-full w-[400px] z-50 glass-sheet border-l border-stone-100 shadow-[-8px_0_48px_-8px_rgba(0,0,0,0.14)] hidden flex-col"
+         style="display:none">
+    <div class="settings-sheet flex flex-col h-full">
+      <!-- Sheet header -->
+      <div class="flex items-center justify-between px-6 pt-14 pb-5 border-b border-stone-100/80">
+        <div>
+          <div class="text-[15px] font-semibold tracking-tight">偏好设置</div>
+          <div class="text-[11px] text-stone-400 mt-0.5">飞鸟下载器</div>
+        </div>
+        <button onclick="closeSettings()"
+                class="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500 transition-colors cursor-pointer">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+
+      <!-- Sheet body -->
+      <div class="flex-1 overflow-y-auto px-6 pb-8">
+
+        <!-- 下载位置 -->
+        <div class="settings-section-title">下载位置</div>
+        <div class="bg-white rounded-2xl border border-stone-100 divide-y divide-stone-50">
+          <div class="p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+              <i data-lucide="folder" class="w-4 h-4 text-amber-600"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[12.5px] font-medium">保存目录</div>
+              <div class="text-[11px] text-stone-400 font-mono truncate mt-0.5">~/Downloads/飞鸟下载</div>
+            </div>
+            <button class="text-[11.5px] text-amber-600 font-semibold hover:text-amber-700 cursor-pointer">更改</button>
+          </div>
+          <div class="p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-stone-50 flex items-center justify-center shrink-0">
+              <i data-lucide="file-text" class="w-4 h-4 text-stone-400"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[12.5px] font-medium">文件名模板</div>
+              <div class="text-[11px] text-stone-400 font-mono mt-0.5">%(title)s.%(ext)s</div>
+            </div>
+            <button class="text-[11.5px] text-stone-400 hover:text-stone-600 cursor-pointer">编辑</button>
+          </div>
+        </div>
+
+        <!-- 网络 -->
+        <div class="settings-section-title">网络</div>
+        <div class="bg-white rounded-2xl border border-stone-100 divide-y divide-stone-50">
+          <div class="p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+              <i data-lucide="shield" class="w-4 h-4 text-amber-600"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[12.5px] font-medium">代理服务器</div>
+              <div class="text-[11px] text-stone-400 font-mono mt-0.5">http://127.0.0.1:7890</div>
+            </div>
+            <!-- Toggle switch -->
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked class="sr-only peer" />
+              <div class="w-9 h-5 rounded-full bg-amber-500 peer-checked:bg-amber-500
+                          after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                          after:bg-white after:rounded-full after:h-4 after:w-4
+                          after:transition-all peer-checked:after:translate-x-4
+                          after:shadow-sm"></div>
+            </label>
+          </div>
+          <div class="p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-stone-50 flex items-center justify-center shrink-0">
+              <i data-lucide="cookie" class="w-4 h-4 text-stone-400"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[12.5px] font-medium">Cookies 来源</div>
+              <div class="text-[11px] text-stone-400 mt-0.5">用于下载登录后才可见的内容</div>
+            </div>
+            <select class="text-[11.5px] bg-stone-50 border border-stone-200 rounded-lg h-7 px-2 text-stone-600 font-medium focus:outline-none focus:border-amber-400">
+              <option>Chrome</option>
+              <option>Safari</option>
+              <option>Firefox</option>
+              <option>不使用</option>
+            </select>
+          </div>
+          <div class="p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-stone-50 flex items-center justify-center shrink-0">
+              <i data-lucide="gauge" class="w-4 h-4 text-stone-400"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[12.5px] font-medium">限速</div>
+              <div class="text-[11px] text-stone-400 mt-0.5">不限制</div>
+            </div>
+            <button class="text-[11.5px] text-stone-400 hover:text-stone-600 cursor-pointer">设置</button>
+          </div>
+        </div>
+
+        <!-- 默认偏好 -->
+        <div class="settings-section-title">默认偏好</div>
+        <div class="bg-white rounded-2xl border border-stone-100 divide-y divide-stone-50">
+          <div class="p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-stone-50 flex items-center justify-center shrink-0">
+              <i data-lucide="video" class="w-4 h-4 text-stone-400"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[12.5px] font-medium">默认画质</div>
+            </div>
+            <select class="text-[11.5px] bg-stone-50 border border-stone-200 rounded-lg h-7 px-2 text-stone-600 font-medium focus:outline-none focus:border-amber-400">
+              <option>1080p</option>
+              <option>720p</option>
+              <option>4K</option>
+              <option>最佳画质</option>
+            </select>
+          </div>
+          <div class="p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-stone-50 flex items-center justify-center shrink-0">
+              <i data-lucide="file-video" class="w-4 h-4 text-stone-400"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[12.5px] font-medium">默认格式</div>
+            </div>
+            <select class="text-[11.5px] bg-stone-50 border border-stone-200 rounded-lg h-7 px-2 text-stone-600 font-medium focus:outline-none focus:border-amber-400">
+              <option>MP4</option>
+              <option>MKV</option>
+              <option>WebM</option>
+            </select>
+          </div>
+          <div class="p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-stone-50 flex items-center justify-center shrink-0">
+              <i data-lucide="subtitles" class="w-4 h-4 text-stone-400"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[12.5px] font-medium">自动下载字幕</div>
+              <div class="text-[11px] text-stone-400 mt-0.5">简体中文 · English</div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" class="sr-only peer" />
+              <div class="w-9 h-5 rounded-full bg-stone-200 peer-checked:bg-amber-500
+                          after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                          after:bg-white after:rounded-full after:h-4 after:w-4
+                          after:transition-all peer-checked:after:translate-x-4
+                          after:shadow-sm"></div>
+            </label>
+          </div>
+        </div>
+
+        <!-- 关于 -->
+        <div class="settings-section-title">关于</div>
+        <div class="bg-white rounded-2xl border border-stone-100 divide-y divide-stone-50">
+          <div class="p-4 flex items-center gap-3">
+            <!-- Bird SVG mark inline -->
+            <div class="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+              <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+                <path d="M6 22C6 22 8 14 16 12C24 10 28 16 26 20C24 24 20 24 18 22C16 20 17 16 20 15" stroke="#D97706" stroke-width="2" stroke-linecap="round"/>
+                <path d="M16 12L12 6L8 10" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="21" cy="10" r="1.5" fill="#EAB308"/>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <div class="text-[12.5px] font-semibold">飞鸟下载器</div>
+              <div class="text-[11px] text-stone-400 num">v1.0.0 · 基于 yt-dlp 2026.03.17</div>
+            </div>
+          </div>
+          <div class="p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-stone-50 flex items-center justify-center shrink-0">
+              <i data-lucide="refresh-cw" class="w-4 h-4 text-stone-400"></i>
+            </div>
+            <div class="flex-1">
+              <div class="text-[12.5px] font-medium">检查更新</div>
+              <div class="text-[11px] text-stone-400 mt-0.5">已是最新版本</div>
+            </div>
+            <span class="text-[10.5px] font-semibold text-green-600 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full">最新</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </aside>
+
+  <!-- ⚡ NEW: macOS-style title bar (44px, traffic-light area kept clear) -->
+  <header id="titlebar"
+          class="fixed top-0 left-0 right-0 h-11 z-30 flex items-center border-b border-stone-100/80"
+          style="padding-left: 76px;">
+
+    <!-- Left: version status -->
+    <div class="flex items-center gap-1.5 text-[11.5px] text-stone-400 font-medium">
+      <!-- Green pulse dot -->
+      <span class="relative flex h-2 w-2">
+        <span class="pulse-dot absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+      </span>
+      <span class="num">yt-dlp 2026.03.17</span>
+      <span class="text-stone-200">·</span>
+      <span>ffmpeg 已就绪</span>
+    </div>
+
+    <!-- ⚡ NEW: Proxy chip (amber, center-right of status row) -->
+    <div class="ml-3 flex items-center">
+      <div id="proxy-chip-ready"
+           class="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-[11px] font-semibold text-amber-700">
+        <i data-lucide="check" class="w-3 h-3"></i>
+        Clash 代理已就绪
+      </div>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <!-- ⚡ NEW: Language dropdown right side -->
+    <div class="flex items-center gap-2 pr-4">
+      <div class="relative">
+        <select id="lang-select"
+                class="text-[11.5px] font-semibold text-stone-500 bg-transparent border-none focus:outline-none h-7 pl-1 pr-5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer">
+          <option>中文</option>
+          <option>繁中</option>
+          <option>English</option>
+          <option>日本語</option>
+          <option>한국어</option>
+        </select>
+      </div>
+
+      <!-- Settings gear icon -->
+      <button id="settings-btn"
+              onclick="openSettings()"
+              class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+              title="偏好设置">
+        <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ⚡ NEW: Main content — single column, max-width 720px, centered -->
+  <main class="pt-11 min-h-screen">
+    <div class="max-w-[720px] mx-auto px-5 py-6 space-y-4 stagger">
+
+      <!-- ⚡ NEW: Hero input row — the entire app collapses to this -->
+      <div class="hero-input rounded-2xl p-2 fade-in" style="animation-delay:0.05s">
+        <div class="flex items-center gap-2">
+          <!-- Link icon -->
+          <div class="pl-2 text-stone-300 shrink-0">
+            <i data-lucide="link-2" class="w-4 h-4"></i>
+          </div>
+
+          <!-- URL input -->
+          <input type="text"
+                 id="url-input"
+                 placeholder="粘贴视频链接…"
+                 class="flex-1 bg-transparent border-none outline-none text-[13.5px] text-stone-800 placeholder-stone-300 h-10 font-medium"
+                 autocomplete="off"
+                 spellcheck="false" />
+
+          <!-- Quality dropdown -->
+          <select class="text-[11.5px] font-semibold text-stone-500 bg-stone-50 border border-stone-200 rounded-xl h-8 px-2 focus:outline-none focus:border-amber-400 transition-colors num">
+            <option>1080p</option>
+            <option>720p</option>
+            <option>4K</option>
+            <option>最佳</option>
+          </select>
+
+          <!-- Format dropdown -->
+          <select class="text-[11.5px] font-semibold text-stone-500 bg-stone-50 border border-stone-200 rounded-xl h-8 px-2 focus:outline-none focus:border-amber-400 transition-colors">
+            <option>MP4</option>
+            <option>MKV</option>
+            <option>MP3</option>
+            <option>FLAC</option>
+          </select>
+
+          <!-- Download button -->
+          <button class="btn-amber h-10 px-5 rounded-xl text-[13px] font-semibold flex items-center gap-1.5 shrink-0">
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            下载
+          </button>
+        </div>
+
+        <!-- ⚡ NEW: Source toggle — inline pill, below input, right-aligned -->
+        <div class="flex items-center justify-between px-2 pt-1.5 pb-0.5">
+          <div class="pill-toggle">
+            <button class="active" onclick="setSource(this,'main')">🌐 视频网站</button>
+            <button onclick="setSource(this,'short')">🎬 短视频（无水印）</button>
+          </div>
+          <span class="text-[10.5px] text-stone-300 font-medium">YouTube · Bilibili · 抖音 · 1800+ 平台</span>
+        </div>
+      </div>
+
+      <!-- ⚡ NEW: Unified Task Stream — replaces Downloads + History pages -->
+      <div class="space-y-3">
+
+        <!-- Section: 进行中 (3) -->
+        <div class="flex items-center gap-2 mt-1">
+          <div class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">进行中</div>
+          <div class="flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold">3</div>
+          <div class="flex-1 h-px bg-stone-100"></div>
+        </div>
+
+        <!-- Active task 1: 47% downloading -->
+        <div class="task-card bg-white rounded-2xl border amber-border-active p-4 relative overflow-hidden fade-in" style="animation-delay:0.1s">
+          <!-- Amber left accent bar -->
+          <div class="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-amber-500 to-amber-600 rounded-l-2xl"></div>
+          <div class="flex gap-3 pl-1.5">
+            <div class="relative shrink-0">
+              <img src="https://picsum.photos/96/56?random=1"
+                   class="w-24 h-14 rounded-xl object-cover"
+                   alt="thumbnail" />
+              <div class="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-semibold num px-1 py-0.5 rounded-md backdrop-blur-sm">12:47</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight">
+                【4K HDR】2026年春晚完整版：山河四季·盛世华章
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span class="badge-platform badge-yt">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="#DC2626"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.13C19.43 3.5 12 3.5 12 3.5s-7.43 0-9.38.56A3.02 3.02 0 0 0 .5 6.19C0 8.14 0 12.27 0 12.27s0 4.13.5 6.08a3.02 3.02 0 0 0 2.12 2.13C4.57 21.04 12 21.04 12 21.04s7.43 0 9.38-.56a3.02 3.02 0 0 0 2.12-2.13C24 16.4 24 12.27 24 12.27s0-4.13-.5-6.08z"/><polygon fill="white" points="9.73,15.78 15.83,12.27 9.73,8.76"/></svg>
+                  YouTube
+                </span>
+                <span class="text-[10.5px] font-semibold text-stone-800 num">47%</span>
+                <span class="text-[10.5px] text-stone-400 num">5.2 MB/s</span>
+                <span class="text-[10.5px] text-stone-400">·</span>
+                <span class="text-[10.5px] text-stone-400 num">剩余 0:43</span>
+                <span class="text-[10.5px] text-stone-400">·</span>
+                <span class="text-[10.5px] text-stone-400 num">1080p</span>
+              </div>
+              <!-- Progress bar -->
+              <div class="mt-2.5 h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                <div class="h-full rounded-full progress-shine" style="width: 47%"></div>
+              </div>
+            </div>
+            <!-- Card actions on hover -->
+            <div class="card-actions flex flex-col items-end gap-1 shrink-0">
+              <button class="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-stone-300 hover:text-red-500 transition-colors cursor-pointer" title="取消">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+              </button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer" title="更多">
+                <i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active task 2: postprocessing -->
+        <div class="task-card bg-white rounded-2xl border amber-border-active p-4 relative overflow-hidden fade-in" style="animation-delay:0.15s">
+          <div class="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-amber-400 to-amber-500 rounded-l-2xl"></div>
+          <div class="flex gap-3 pl-1.5">
+            <div class="relative shrink-0">
+              <img src="https://picsum.photos/96/56?random=2"
+                   class="w-24 h-14 rounded-xl object-cover"
+                   alt="thumbnail" />
+              <div class="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-semibold num px-1 py-0.5 rounded-md backdrop-blur-sm">8:22</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight">
+                Vue 3 + TypeScript 完整教程：从零到企业级应用
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span class="badge-platform badge-bili">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="#0284C7"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.658.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/></svg>
+                  Bilibili
+                </span>
+                <span class="flex items-center gap-1 text-[10.5px] text-amber-600 font-medium">
+                  <svg class="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                  合并视频和音频…
+                </span>
+              </div>
+              <!-- Full-width indeterminate bar -->
+              <div class="mt-2.5 h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                <div class="h-full rounded-full progress-shine" style="width: 100%"></div>
+              </div>
+            </div>
+            <div class="card-actions flex flex-col items-end gap-1 shrink-0">
+              <button class="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-stone-300 hover:text-red-500 transition-colors cursor-pointer" title="取消">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+              </button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer" title="更多">
+                <i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active task 3: pending -->
+        <div class="task-card bg-white rounded-2xl border amber-border-active p-4 relative overflow-hidden fade-in" style="animation-delay:0.2s">
+          <div class="absolute left-0 top-0 bottom-0 w-[3px] bg-stone-200 rounded-l-2xl"></div>
+          <div class="flex gap-3 pl-1.5">
+            <div class="relative shrink-0">
+              <img src="https://picsum.photos/96/56?random=3"
+                   class="w-24 h-14 rounded-xl object-cover"
+                   alt="thumbnail" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight text-stone-500">
+                Radiohead - OK Computer Full Album Remaster 2025
+              </div>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span class="badge-platform badge-yt">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="#DC2626"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.13C19.43 3.5 12 3.5 12 3.5s-7.43 0-9.38.56A3.02 3.02 0 0 0 .5 6.19C0 8.14 0 12.27 0 12.27s0 4.13.5 6.08a3.02 3.02 0 0 0 2.12 2.13C4.57 21.04 12 21.04 12 21.04s7.43 0 9.38-.56a3.02 3.02 0 0 0 2.12-2.13C24 16.4 24 12.27 24 12.27s0-4.13-.5-6.08z"/><polygon fill="white" points="9.73,15.78 15.83,12.27 9.73,8.76"/></svg>
+                  YouTube
+                </span>
+                <span class="text-[10.5px] text-stone-400">等待中…</span>
+              </div>
+              <div class="mt-2.5 h-1.5 bg-stone-100 rounded-full"></div>
+            </div>
+            <div class="card-actions flex flex-col items-end gap-1 shrink-0">
+              <button class="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-stone-300 hover:text-red-500 transition-colors cursor-pointer" title="取消">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: 今天 (4) -->
+        <div class="flex items-center gap-2 mt-3">
+          <div class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">今天</div>
+          <div class="flex items-center justify-center w-5 h-5 rounded-full bg-stone-100 text-stone-500 text-[10px] font-bold">4</div>
+          <div class="flex-1 h-px bg-stone-100"></div>
+        </div>
+
+        <!-- Today task 1: completed Bilibili -->
+        <div class="task-card bg-white rounded-2xl border border-stone-100 p-4 fade-in" style="animation-delay:0.25s">
+          <div class="flex gap-3">
+            <div class="relative shrink-0">
+              <img src="https://picsum.photos/96/56?random=4"
+                   class="w-24 h-14 rounded-xl object-cover"
+                   alt="thumbnail" />
+              <div class="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-semibold num px-1 py-0.5 rounded-md">23:14</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight">
+                【纪录片】黄河流域生态保护与高质量发展·全四集
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span class="badge-platform badge-bili">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="#0284C7"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.658.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/></svg>
+                  Bilibili
+                </span>
+                <span class="flex items-center gap-1 text-[10.5px] text-green-600 font-medium">
+                  <i data-lucide="check-circle-2" class="w-3 h-3"></i>
+                  <span class="num">14:23</span>
+                </span>
+                <span class="text-[10.5px] text-stone-400 num">· 4K · 2.1 GB</span>
+              </div>
+            </div>
+            <div class="card-actions flex items-center gap-1 shrink-0 self-center">
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer" title="打开位置">
+                <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+              </button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer" title="打开原始链接">
+                <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+              </button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer" title="更多">
+                <i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Today task 2: completed Pornhub -->
+        <div class="task-card bg-white rounded-2xl border border-stone-100 p-4 fade-in" style="animation-delay:0.3s">
+          <div class="flex gap-3">
+            <div class="relative shrink-0">
+              <img src="https://picsum.photos/96/56?random=5"
+                   class="w-24 h-14 rounded-xl object-cover"
+                   alt="thumbnail" />
+              <div class="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-semibold num px-1 py-0.5 rounded-md">18:30</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight">
+                Behind the Scenes: Studio Documentary — Season 3
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span class="badge-platform badge-ph">PH</span>
+                <span class="flex items-center gap-1 text-[10.5px] text-green-600 font-medium">
+                  <i data-lucide="check-circle-2" class="w-3 h-3"></i>
+                  <span class="num">11:07</span>
+                </span>
+                <span class="text-[10.5px] text-stone-400 num">· 1080p · 890 MB</span>
+              </div>
+            </div>
+            <div class="card-actions flex items-center gap-1 shrink-0 self-center">
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer">
+                <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+              </button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer">
+                <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+              </button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer">
+                <i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Today task 3: failed -->
+        <div class="task-card bg-white rounded-2xl border border-red-100 p-4 fade-in" style="animation-delay:0.33s">
+          <div class="absolute left-0 top-0 bottom-0 w-[3px] bg-red-400 rounded-l-2xl" style="position:absolute"></div>
+          <div class="flex gap-3">
+            <div class="relative shrink-0">
+              <div class="w-24 h-14 rounded-xl bg-red-50 flex items-center justify-center">
+                <i data-lucide="alert-circle" class="w-6 h-6 text-red-300"></i>
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight text-stone-500">
+                [已删除] 《再见爱人5》官方正片EP01
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span class="badge-platform badge-fail">
+                  <i data-lucide="x-circle" class="w-2.5 h-2.5 inline mr-0.5"></i>
+                  错误 412
+                </span>
+                <span class="text-[10.5px] text-red-400 font-medium">该资源已下架或需登录</span>
+              </div>
+            </div>
+            <div class="card-actions flex items-center gap-1 shrink-0 self-center">
+              <button class="h-7 px-2.5 rounded-lg hover:bg-stone-100 text-[11px] text-stone-400 hover:text-stone-600 transition-colors cursor-pointer font-medium flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                重试
+              </button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer">
+                <i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Today task 4: cancelled -->
+        <div class="task-card bg-white rounded-2xl border border-stone-100 p-4 fade-in" style="animation-delay:0.36s">
+          <div class="flex gap-3">
+            <div class="relative shrink-0">
+              <img src="https://picsum.photos/96/56?random=6"
+                   class="w-24 h-14 rounded-xl object-cover opacity-40"
+                   alt="thumbnail" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight text-stone-400">
+                Lana Del Rey — Did You Know That There's a Tunnel
+              </div>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span class="badge-platform badge-cancel">已取消</span>
+                <span class="text-[10.5px] text-stone-400 num">09:41</span>
+              </div>
+            </div>
+            <div class="card-actions flex items-center gap-1 shrink-0 self-center">
+              <button class="h-7 px-2.5 rounded-lg hover:bg-stone-100 text-[11px] text-stone-400 hover:text-stone-600 transition-colors cursor-pointer font-medium flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                重新下载
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: 昨天 (2) -->
+        <div class="flex items-center gap-2 mt-3">
+          <div class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">昨天</div>
+          <div class="flex items-center justify-center w-5 h-5 rounded-full bg-stone-100 text-stone-500 text-[10px] font-bold">2</div>
+          <div class="flex-1 h-px bg-stone-100"></div>
+        </div>
+
+        <!-- Yesterday task 1: Douyin, 无水印 -->
+        <div class="task-card bg-white rounded-2xl border border-stone-100 p-4 fade-in" style="animation-delay:0.4s">
+          <div class="flex gap-3">
+            <div class="relative shrink-0">
+              <img src="https://picsum.photos/96/56?random=7"
+                   class="w-24 h-14 rounded-xl object-cover"
+                   alt="thumbnail" />
+              <div class="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-semibold num px-1 py-0.5 rounded-md">0:37</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight">
+                在杭州西湖边喝咖啡是什么体验✨【Vlog】
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span class="badge-platform badge-dy">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.98a8.26 8.26 0 0 0 4.83 1.54V7.07a4.85 4.85 0 0 1-1.06-.38z"/></svg>
+                  抖音
+                </span>
+                <span class="badge-platform badge-wm">
+                  <i data-lucide="check-circle-2" class="w-2.5 h-2.5 inline"></i>
+                  无水印
+                </span>
+                <span class="flex items-center gap-1 text-[10.5px] text-green-600 font-medium">
+                  <i data-lucide="check-circle-2" class="w-3 h-3"></i>
+                  <span class="num">21:05</span>
+                </span>
+                <span class="text-[10.5px] text-stone-400 num">· 47 MB</span>
+              </div>
+            </div>
+            <div class="card-actions flex items-center gap-1 shrink-0 self-center">
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer">
+                <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+              </button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer">
+                <i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Yesterday task 2: YouTube -->
+        <div class="task-card bg-white rounded-2xl border border-stone-100 p-4 fade-in" style="animation-delay:0.43s">
+          <div class="flex gap-3">
+            <div class="relative shrink-0">
+              <img src="https://picsum.photos/96/56?random=8"
+                   class="w-24 h-14 rounded-xl object-cover"
+                   alt="thumbnail" />
+              <div class="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-semibold num px-1 py-0.5 rounded-md">15:42</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight">
+                The Future of AI in 2027 — Stanford HAI Annual Lecture
+              </div>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span class="badge-platform badge-yt">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="#DC2626"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.13C19.43 3.5 12 3.5 12 3.5s-7.43 0-9.38.56A3.02 3.02 0 0 0 .5 6.19C0 8.14 0 12.27 0 12.27s0 4.13.5 6.08a3.02 3.02 0 0 0 2.12 2.13C4.57 21.04 12 21.04 12 21.04s7.43 0 9.38-.56a3.02 3.02 0 0 0 2.12-2.13C24 16.4 24 12.27 24 12.27s0-4.13-.5-6.08z"/><polygon fill="white" points="9.73,15.78 15.83,12.27 9.73,8.76"/></svg>
+                  YouTube
+                </span>
+                <span class="flex items-center gap-1 text-[10.5px] text-green-600 font-medium">
+                  <i data-lucide="check-circle-2" class="w-3 h-3"></i>
+                  <span class="num">16:58</span>
+                </span>
+                <span class="text-[10.5px] text-stone-400 num">· 1080p · 1.4 GB</span>
+              </div>
+            </div>
+            <div class="card-actions flex items-center gap-1 shrink-0 self-center">
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer">
+                <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+              </button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer">
+                <i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: 更早 (3) -->
+        <div class="flex items-center gap-2 mt-3">
+          <div class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">更早</div>
+          <div class="flex items-center justify-center w-5 h-5 rounded-full bg-stone-100 text-stone-500 text-[10px] font-bold">3</div>
+          <div class="flex-1 h-px bg-stone-100"></div>
+        </div>
+
+        <!-- Earlier tasks (3, compact) -->
+        <div class="task-card bg-white rounded-2xl border border-stone-100 p-4 fade-in" style="animation-delay:0.46s">
+          <div class="flex gap-3">
+            <img src="https://picsum.photos/96/56?random=9" class="w-24 h-14 rounded-xl object-cover shrink-0" alt="thumbnail" />
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight">寺尾聰「ルビーの指環」Music Video Official 1981 Remaster</div>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span class="badge-platform badge-yt"><svg width="10" height="10" viewBox="0 0 24 24" fill="#DC2626"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.13C19.43 3.5 12 3.5 12 3.5s-7.43 0-9.38.56A3.02 3.02 0 0 0 .5 6.19C0 8.14 0 12.27 0 12.27s0 4.13.5 6.08a3.02 3.02 0 0 0 2.12 2.13C4.57 21.04 12 21.04 12 21.04s7.43 0 9.38-.56a3.02 3.02 0 0 0 2.12-2.13C24 16.4 24 12.27 24 12.27s0-4.13-.5-6.08z"/><polygon fill="white" points="9.73,15.78 15.83,12.27 9.73,8.76"/></svg>YouTube</span>
+                <span class="flex items-center gap-1 text-[10.5px] text-green-600 font-medium"><i data-lucide="check-circle-2" class="w-3 h-3"></i><span class="num">5月18日</span></span>
+                <span class="text-[10.5px] text-stone-400 num">· 720p · 234 MB</span>
+              </div>
+            </div>
+            <div class="card-actions flex items-center gap-1 shrink-0 self-center">
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer"><i data-lucide="folder-open" class="w-3.5 h-3.5"></i></button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer"><i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="task-card bg-white rounded-2xl border border-stone-100 p-4 fade-in" style="animation-delay:0.49s">
+          <div class="flex gap-3">
+            <img src="https://picsum.photos/96/56?random=10" class="w-24 h-14 rounded-xl object-cover shrink-0" alt="thumbnail" />
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight">小米 SU7 Ultra 实测：纽北 6:46 圈速完整车载记录</div>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span class="badge-platform badge-bili"><svg width="10" height="10" viewBox="0 0 24 24" fill="#0284C7"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.658.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/></svg>Bilibili</span>
+                <span class="flex items-center gap-1 text-[10.5px] text-green-600 font-medium"><i data-lucide="check-circle-2" class="w-3 h-3"></i><span class="num">5月15日</span></span>
+                <span class="text-[10.5px] text-stone-400 num">· 4K · 3.8 GB</span>
+              </div>
+            </div>
+            <div class="card-actions flex items-center gap-1 shrink-0 self-center">
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer"><i data-lucide="folder-open" class="w-3.5 h-3.5"></i></button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer"><i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="task-card bg-white rounded-2xl border border-stone-100 p-4 fade-in" style="animation-delay:0.52s">
+          <div class="flex gap-3">
+            <img src="https://picsum.photos/96/56?random=11" class="w-24 h-14 rounded-xl object-cover shrink-0" alt="thumbnail" />
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] font-semibold leading-snug line-clamp-1 tracking-tight">How I Became a Millionaire at 22 — Gary Vee Podcast EP. 412</div>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span class="badge-platform badge-yt"><svg width="10" height="10" viewBox="0 0 24 24" fill="#DC2626"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.13C19.43 3.5 12 3.5 12 3.5s-7.43 0-9.38.56A3.02 3.02 0 0 0 .5 6.19C0 8.14 0 12.27 0 12.27s0 4.13.5 6.08a3.02 3.02 0 0 0 2.12 2.13C4.57 21.04 12 21.04 12 21.04s7.43 0 9.38-.56a3.02 3.02 0 0 0 2.12-2.13C24 16.4 24 12.27 24 12.27s0-4.13-.5-6.08z"/><polygon fill="white" points="9.73,15.78 15.83,12.27 9.73,8.76"/></svg>YouTube</span>
+                <span class="flex items-center gap-1 text-[10.5px] text-green-600 font-medium"><i data-lucide="check-circle-2" class="w-3 h-3"></i><span class="num">5月12日</span></span>
+                <span class="text-[10.5px] text-stone-400 num">· 1080p · 782 MB</span>
+              </div>
+            </div>
+            <div class="card-actions flex items-center gap-1 shrink-0 self-center">
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer"><i data-lucide="folder-open" class="w-3.5 h-3.5"></i></button>
+              <button class="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-300 hover:text-stone-600 transition-colors cursor-pointer"><i data-lucide="more-horizontal" class="w-3.5 h-3.5"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom padding spacer -->
+        <div class="h-20"></div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- ⚡ NEW: Floating settings button (bottom-right) -->
+  <button onclick="openSettings()"
+          class="fixed bottom-6 right-6 z-20 w-11 h-11 rounded-2xl bg-white border border-stone-200 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.12)] flex items-center justify-center text-stone-400 hover:text-stone-700 hover:border-stone-300 hover:shadow-[0_6px_24px_-4px_rgba(0,0,0,0.16)] transition-all duration-200 cursor-pointer"
+          title="偏好设置">
+    <i data-lucide="settings-2" class="w-4.5 h-4.5"></i>
+  </button>
+
+  <!-- ⚡ NEW: Sonner-style toast (demo, stacked bottom-right) -->
+  <div id="toast-container"
+       class="fixed bottom-20 right-6 z-50 flex flex-col gap-2 pointer-events-none"
+       style="width: 300px">
+    <div class="toast-enter pointer-events-auto bg-stone-900 text-white rounded-2xl px-4 py-3 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.3)] flex items-start gap-3">
+      <div class="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shrink-0 mt-0.5">
+        <i data-lucide="check" class="w-3 h-3 text-white"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="text-[13px] font-semibold">已加入下载队列</div>
+        <div class="text-[11px] text-stone-400 mt-0.5 leading-relaxed">
+          【纪录片】黄河流域… · 1080p · MP4
+        </div>
+      </div>
+      <button onclick="this.closest('[class*=toast]').remove()"
+              class="w-5 h-5 rounded-lg hover:bg-white/10 flex items-center justify-center text-stone-400 hover:text-white transition-colors cursor-pointer shrink-0">
+        <i data-lucide="x" class="w-3 h-3"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ⚡ NEW: Vanilla JS interactions -->
+  <script>
+    // Initialize Lucide icons
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+
+      // Auto-dismiss toast after 4s
+      const toast = document.querySelector('#toast-container > div');
+      if (toast) {
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(4px) scale(0.97)';
+          toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+          setTimeout(() => toast.remove(), 260);
+        }, 4000);
+      }
+    });
+
+    // Settings sheet
+    const sheet = document.getElementById('settings-sheet');
+    const backdrop = document.getElementById('settings-backdrop');
+
+    function openSettings() {
+      sheet.style.display = 'flex';
+      backdrop.classList.remove('hidden');
+      // Trigger reflow for animation
+      sheet.offsetHeight;
+      sheet.querySelector('.settings-sheet').classList.remove('closing');
+      document.addEventListener('keydown', handleEsc);
+    }
+
+    function closeSettings() {
+      const inner = sheet.querySelector('.settings-sheet');
+      inner.classList.add('closing');
+      backdrop.style.opacity = '0';
+      backdrop.style.transition = 'opacity 0.22s ease';
+      setTimeout(() => {
+        sheet.style.display = 'none';
+        backdrop.classList.add('hidden');
+        backdrop.style.opacity = '';
+        backdrop.style.transition = '';
+      }, 230);
+      document.removeEventListener('keydown', handleEsc);
+    }
+
+    function handleEsc(e) {
+      if (e.key === 'Escape') closeSettings();
+    }
+
+    // Source toggle
+    function setSource(btn, type) {
+      const pills = btn.closest('.pill-toggle').querySelectorAll('button');
+      pills.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Update placeholder
+      const input = document.getElementById('url-input');
+      if (type === 'short') {
+        input.placeholder = '粘贴抖音 / 小红书 / TikTok 链接，自动去水印…';
+      } else {
+        input.placeholder = '粘贴视频链接…';
+      }
+    }
+
+    // Re-init Lucide icons after any dynamic DOM changes
+    function reinitIcons() {
+      lucide.createIcons();
+    }
+  </script>
+
+</body>
+</html>
