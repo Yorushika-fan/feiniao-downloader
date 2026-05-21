@@ -1,0 +1,115 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS (Apple Silicon)
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - os: macos-latest
+            label: macOS (Intel)
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - os: ubuntu-latest
+            label: Linux x86_64
+            target: x86_64-unknown-linux-gnu
+            args: ''
+          - os: windows-latest
+            label: Windows x86_64
+            target: x86_64-pc-windows-msvc
+            args: ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install pnpm deps
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            libssl-dev
+
+      - name: Type check (TS)
+        run: pnpm exec tsc --noEmit
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.args }}
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('飞鸟下载器 {0}', github.ref_name) || '' }}
+          releaseBody: |
+            ## 安装
+            - **macOS**: 下载 `.dmg`，拖入「应用程序」
+            - **Windows**: 下载 `.msi` 或 `.exe` 安装
+            - **Linux**: 下载 `.AppImage` 或 `.deb`
+
+            首次启动会自动检测 yt-dlp，未安装时点 [一键安装] 即可。
+          releaseDraft: true
+          prerelease: false
+          includeRelease: ${{ startsWith(github.ref, 'refs/tags/') }}
+          includeUpdaterJson: false
+
+      - name: Upload artifacts
+        if: '!startsWith(github.ref, ''refs/tags/'')'
+        uses: actions/upload-artifact@v4
+        with:
+          name: feiniao-${{ matrix.target }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.deb
+          if-no-files-found: warn
+          retention-days: 30
