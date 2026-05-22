@@ -87,19 +87,19 @@ pub fn ffmpeg_binary_filename() -> &'static str {
 }
 
 /// Direct download URL for a static, single-file ffmpeg binary per platform.
-/// Uses eugeneware/ffmpeg-static which publishes bare binaries — no archive
-/// to extract on the user's machine.
+/// Uses eugeneware/ffmpeg-static via the `releases/latest/download/` redirect,
+/// so we always get the newest stable binary without pinning a version tag.
 pub fn ffmpeg_download_url() -> Option<&'static str> {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/darwin-arm64");
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-arm64");
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/darwin-x64");
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-x64");
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/linux-x64");
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-linux-x64");
     #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/linux-arm64");
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-linux-arm64");
     #[cfg(target_os = "windows")]
-    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/win32-x64.exe");
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-win32-x64");
     #[cfg(not(any(
         all(target_os = "macos", any(target_arch = "aarch64", target_arch = "x86_64")),
         all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")),
