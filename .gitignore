@@ -5,6 +5,11 @@ dist-ssr
 *.local
 .pnpm-store
 
+# website/dist is hand-authored (deployed via wrangler), keep it tracked
+!website/dist/
+!website/dist/index.html
+!website/dist/_headers
+
 # IDE
 .vscode/*
 !.vscode/extensions.json

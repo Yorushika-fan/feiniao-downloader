@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>飞鸟下载器 · 极简的视频下载工具</title>
+<meta name="description" content="基于 yt-dlp 的跨平台视频下载工具，支持 1800+ 平台。粘贴链接、一键下载，专为多语言用户设计。" />
+<meta property="og:title" content="飞鸟下载器" />
+<meta property="og:description" content="极简、智能、好用 — 1800+ 视频平台一键下载" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'PingFang SC', 'Hiragino Sans', 'Noto Sans CJK', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'] },
+      },
+    },
+  };
+</script>
+<style>
+  :root { --amber-grad: linear-gradient(135deg, #D97706 0%, #CA8A04 50%, #EAB308 100%); }
+  html { scroll-behavior: smooth; }
+  body { font-feature-settings: 'cv02','cv03','cv04','cv11','ss01','ss03'; letter-spacing: -0.005em; -webkit-font-smoothing: antialiased; }
+  .text-grad { background: var(--amber-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .bg-grad { background: var(--amber-grad); }
+  .num { font-variant-numeric: tabular-nums; }
+  .lume::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 18%); opacity: 0.5; }
+  @keyframes float-soft { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-8px) rotate(1deg); } }
+  .float-soft { animation: float-soft 4s ease-in-out infinite; }
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(28,25,23,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(28,25,23,0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .mask-fade { mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%); -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%); }
+  .hover-lift { transition: transform .25s cubic-bezier(.4,0,.2,1), box-shadow .25s; }
+  .hover-lift:hover { transform: translateY(-2px); box-shadow: 0 12px 32px -8px rgba(28,25,23,0.12); }
+  .glass { background: rgba(250,250,249,0.7); backdrop-filter: saturate(180%) blur(24px); -webkit-backdrop-filter: saturate(180%) blur(24px); }
+  /* Illustration helpers */
+  .blob {
+    width: 280px; height: 280px;
+    background: var(--amber-grad);
+    border-radius: 60% 40% 70% 30% / 50% 60% 40% 50%;
+    filter: blur(40px); opacity: 0.4;
+    animation: blob-rotate 18s linear infinite;
+  }
+  @keyframes blob-rotate { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary { list-style: none; }
+  .hide-i18n { display: none; }
+</style>
+</head>
+<body class="bg-stone-50 text-stone-950 font-sans">
+
+<!-- Nav -->
+<nav class="fixed top-0 left-0 right-0 z-50 glass border-b border-stone-200">
+  <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+    <a href="#" class="flex items-center gap-2">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <defs>
+          <linearGradient id="nav-bird" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#D97706" />
+            <stop offset="50%" stop-color="#CA8A04" />
+            <stop offset="100%" stop-color="#EAB308" />
+          </linearGradient>
+        </defs>
+        <path d="M3 12 C6 7, 11 6, 15 10 C18 7, 22 8, 21 12 C19 16, 14 15, 12 12 C10 15, 5 16, 3 12Z" fill="url(#nav-bird)" />
+        <path d="M3 12 C1 13, 1 15, 3 14" fill="#1C1917" opacity="0.7" />
+      </svg>
+      <span class="font-bold tracking-tight text-[15px]" data-i18n="brand">飞鸟下载器</span>
+    </a>
+    <div class="flex items-center gap-1 text-[13px] font-medium">
+      <div class="hidden md:flex items-center gap-1">
+        <a href="#features" class="px-3 py-1.5 rounded-lg text-stone-600 hover:text-stone-950 hover:bg-stone-100 transition" data-i18n="nav.features">特性</a>
+        <a href="#platforms" class="px-3 py-1.5 rounded-lg text-stone-600 hover:text-stone-950 hover:bg-stone-100 transition" data-i18n="nav.platforms">支持平台</a>
+        <a href="#compare" class="px-3 py-1.5 rounded-lg text-stone-600 hover:text-stone-950 hover:bg-stone-100 transition" data-i18n="nav.compare">对比</a>
+        <a href="#faq" class="px-3 py-1.5 rounded-lg text-stone-600 hover:text-stone-950 hover:bg-stone-100 transition" data-i18n="nav.faq">常见问题</a>
+      </div>
+      <!-- Language switcher -->
+      <div class="relative md:ml-1">
+        <button id="lang-btn" class="px-2 py-1.5 rounded-lg text-stone-500 hover:text-stone-950 hover:bg-stone-100 flex items-center gap-1 transition">
+          <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+          <span id="lang-current" class="hidden sm:inline text-[11.5px] font-semibold">中文</span>
+          <i data-lucide="chevron-down" class="w-3 h-3"></i>
+        </button>
+        <div id="lang-menu" class="hidden absolute right-0 top-full mt-1 w-32 rounded-xl bg-white border border-stone-200 shadow-lg overflow-hidden">
+          <button data-lang="zh-CN" class="lang-opt w-full text-left px-3 py-2 text-[12px] font-medium hover:bg-stone-50">简体中文</button>
+          <button data-lang="zh-TW" class="lang-opt w-full text-left px-3 py-2 text-[12px] font-medium hover:bg-stone-50">繁體中文</button>
+          <button data-lang="en" class="lang-opt w-full text-left px-3 py-2 text-[12px] font-medium hover:bg-stone-50">English</button>
+          <button data-lang="ja" class="lang-opt w-full text-left px-3 py-2 text-[12px] font-medium hover:bg-stone-50">日本語</button>
+        </div>
+      </div>
+      <a href="https://github.com/Yorushika-fan/feiniao-downloader/releases/latest" target="_blank" rel="noopener" class="ml-2 px-3 py-1.5 rounded-lg bg-grad text-white shadow-sm hover:shadow-md hover:brightness-105 transition" data-i18n="nav.cta">免费下载</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="relative pt-24 md:pt-32 pb-10 md:pb-12 overflow-hidden">
+  <div class="absolute inset-0 grid-bg mask-fade"></div>
+  <div class="relative max-w-5xl mx-auto px-5 md:px-6 text-center">
+    <div class="inline-block float-soft mb-6 md:mb-7">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" class="drop-shadow-[0_8px_24px_rgba(202,138,4,0.3)] md:w-[72px] md:h-[72px]">
+        <defs>
+          <linearGradient id="hero-bird" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#D97706" /><stop offset="50%" stop-color="#CA8A04" /><stop offset="100%" stop-color="#EAB308" />
+          </linearGradient>
+        </defs>
+        <path d="M3 12 C6 7, 11 6, 15 10 C18 7, 22 8, 21 12 C19 16, 14 15, 12 12 C10 15, 5 16, 3 12Z" fill="url(#hero-bird)" />
+        <path d="M3 12 C1 13, 1 15, 3 14" fill="#1C1917" opacity="0.7" />
+      </svg>
+    </div>
+
+    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-100 border border-stone-200 text-[11px] font-semibold text-stone-600 mb-6 num">
+      <span class="relative flex h-1.5 w-1.5">
+        <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60 animate-ping"></span>
+        <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+      </span>
+      <span data-i18n="hero.badge">v1.3.0 · macOS · Windows · Linux</span>
+    </div>
+
+    <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.1] mb-5 md:mb-6" style="letter-spacing: -0.02em">
+      <span class="text-stone-950" data-i18n="hero.title.1">极简的</span>
+      <span class="text-grad" data-i18n="hero.title.2">视频下载</span>
+      <span class="text-stone-950" data-i18n="hero.title.3">工具</span>
+    </h1>
+
+    <p class="text-[17px] md:text-[19px] text-stone-600 max-w-2xl mx-auto leading-relaxed mb-10" data-i18n="hero.subtitle">
+      基于 yt-dlp，支持 1800+ 视频平台。粘贴链接、自动解析、一键下载。
+    </p>
+
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mb-4">
+      <a href="#download" class="inline-flex items-center gap-2 px-7 h-12 rounded-2xl bg-grad text-white font-semibold text-[15px] shadow-[0_4px_24px_-4px_rgba(202,138,4,0.45)] hover:shadow-[0_8px_32px_-4px_rgba(202,138,4,0.6)] hover:brightness-105 transition">
+        <i data-lucide="download" class="w-4 h-4"></i>
+        <span data-i18n="hero.cta.primary">免费下载</span>
+      </a>
+      <a href="#features" class="inline-flex items-center gap-2 px-5 h-12 rounded-2xl bg-white border border-stone-200 text-stone-700 font-medium hover:bg-stone-50 transition">
+        <span data-i18n="hero.cta.secondary">查看特性</span>
+        <i data-lucide="arrow-down" class="w-3.5 h-3.5"></i>
+      </a>
+    </div>
+
+    <div class="flex items-center justify-center gap-3 text-[11.5px] text-stone-500 num">
+      <span class="flex items-center gap-1"><i data-lucide="apple" class="w-3 h-3"></i> macOS 11+</span>
+      <span class="text-stone-300">·</span>
+      <span class="flex items-center gap-1"><i data-lucide="square-terminal" class="w-3 h-3"></i> Windows 10+</span>
+      <span class="text-stone-300">·</span>
+      <span class="flex items-center gap-1"><i data-lucide="terminal" class="w-3 h-3"></i> Linux</span>
+    </div>
+  </div>
+</section>
+
+<!-- Screenshot mockup -->
+<section class="relative pb-24">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="relative rounded-3xl overflow-hidden border border-stone-200 shadow-[0_24px_80px_-24px_rgba(28,25,23,0.25)] lume">
+      <!-- mac titlebar -->
+      <div class="h-9 bg-stone-100 border-b border-stone-200 flex items-center px-3.5 gap-1.5">
+        <span class="w-3 h-3 rounded-full bg-[#FF5F57]"></span>
+        <span class="w-3 h-3 rounded-full bg-[#FEBC2E]"></span>
+        <span class="w-3 h-3 rounded-full bg-[#28C840]"></span>
+        <div class="flex-1 flex items-center justify-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <defs><linearGradient id="ss-bird" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#D97706" /><stop offset="100%" stop-color="#EAB308" /></linearGradient></defs>
+            <path d="M3 12 C6 7, 11 6, 15 10 C18 7, 22 8, 21 12 C19 16, 14 15, 12 12 C10 15, 5 16, 3 12Z" fill="url(#ss-bird)" />
+          </svg>
+          <span class="text-[11px] font-semibold text-stone-700" data-i18n="brand">飞鸟下载器</span>
+        </div>
+        <i data-lucide="settings" class="w-3.5 h-3.5 text-stone-400"></i>
+      </div>
+      <div class="bg-stone-50 p-6 md:p-10 min-h-[400px]">
+        <div class="max-w-md mx-auto space-y-4">
+          <div class="bg-white rounded-2xl border border-stone-200 shadow-sm p-4">
+            <div class="flex items-start gap-2.5">
+              <i data-lucide="link-2" class="w-4 h-4 text-stone-400 mt-1"></i>
+              <div class="flex-1">
+                <div class="text-[12.5px] text-stone-900">https://www.youtube.com/watch?v=jNQXAC9IVRw</div>
+                <div class="text-[12.5px] text-stone-900 mt-1">https://www.bilibili.com/video/BV1Gd4y1Q7Pf</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 mt-3 pt-3 border-t border-stone-100">
+              <div class="flex gap-0.5 p-0.5 bg-stone-100 rounded-md">
+                <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-white shadow-sm" data-i18n="mock.tab1">视频</span>
+                <span class="px-2 py-0.5 rounded text-[11px] font-medium text-stone-500" data-i18n="mock.tab2">短视频</span>
+              </div>
+              <span class="px-2 h-6 rounded-md bg-stone-100 text-[11px] font-medium flex items-center">1080p</span>
+              <span class="px-2 h-6 rounded-md bg-stone-100 text-[11px] font-medium flex items-center">MP4</span>
+              <div class="flex-1"></div>
+              <span class="px-3 h-7 rounded-lg bg-grad text-white text-[11.5px] font-semibold flex items-center gap-1">
+                <i data-lucide="sparkles" class="w-3 h-3"></i>
+                <span data-i18n="mock.download2">下载 2 个</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="text-[10px] font-semibold tracking-wider text-stone-400 uppercase">
+              <span data-i18n="mock.parsed">已解析</span> · 2
+            </div>
+            <div class="bg-white rounded-xl border border-stone-200 p-3 flex gap-3">
+              <div class="w-24 h-[54px] rounded-lg bg-gradient-to-br from-rose-300 to-rose-400 shrink-0 relative">
+                <span class="absolute bottom-1 right-1 px-1 rounded bg-black/70 text-white text-[8px] font-semibold">0:19</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-[11.5px] font-semibold truncate">Me at the zoo</div>
+                <div class="text-[10px] text-stone-500 mt-0.5 flex items-center gap-1.5">
+                  <span class="px-1 rounded bg-red-50 text-red-600 font-medium">YouTube</span>
+                  <span>jawed · 380M</span>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl border border-stone-200 p-3 flex gap-3">
+              <div class="w-24 h-[54px] rounded-lg bg-gradient-to-br from-cyan-300 to-cyan-500 shrink-0 relative">
+                <span class="absolute bottom-1 right-1 px-1 rounded bg-black/70 text-white text-[8px] font-semibold">12:34</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-[11.5px] font-semibold truncate">罗翔说刑法</div>
+                <div class="text-[10px] text-stone-500 mt-0.5 flex items-center gap-1.5">
+                  <span class="px-1 rounded bg-cyan-50 text-cyan-700 font-medium">Bilibili</span>
+                  <span>2.4M</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features (Bento + illustrations) -->
+<section id="features" class="py-20 bg-stone-100/40">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="text-center mb-12">
+      <span class="text-[11px] font-bold tracking-widest text-amber-700 uppercase" data-i18n="section.features">特性</span>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mt-3" data-i18n="features.title">为下载体验做尽一切优化</h2>
+      <p class="text-stone-600 mt-3 text-[15px]" data-i18n="features.subtitle">让小白也能 5 秒上手，让极客有可深入的细节。</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+      <!-- Feature 1: 1800+ platforms (BIG) -->
+      <div class="md:col-span-2 group relative rounded-3xl bg-white border border-stone-200 p-7 hover-lift overflow-hidden">
+        <div class="absolute -bottom-12 -right-12 blob opacity-30"></div>
+        <div class="relative">
+          <i data-lucide="globe-2" class="w-6 h-6 text-amber-600 mb-3"></i>
+          <h3 class="text-xl font-bold tracking-tight" data-i18n="feat.platforms.title">1800+ 视频平台</h3>
+          <p class="text-[13.5px] text-stone-600 mt-2 leading-relaxed max-w-md" data-i18n="feat.platforms.desc">YouTube、Bilibili、X、TikTok、Twitch、Instagram… 应有尽有。粘贴链接即可，无需配置。</p>
+          <div class="flex flex-wrap gap-1.5 mt-5">
+            <span class="px-2.5 py-1 rounded-md bg-stone-100 text-[10.5px] font-semibold text-stone-700">YouTube</span>
+            <span class="px-2.5 py-1 rounded-md bg-stone-100 text-[10.5px] font-semibold text-stone-700">Bilibili</span>
+            <span class="px-2.5 py-1 rounded-md bg-stone-100 text-[10.5px] font-semibold text-stone-700">TikTok</span>
+            <span class="px-2.5 py-1 rounded-md bg-stone-100 text-[10.5px] font-semibold text-stone-700">抖音</span>
+            <span class="px-2.5 py-1 rounded-md bg-stone-100 text-[10.5px] font-semibold text-stone-700">小红书</span>
+            <span class="px-2.5 py-1 rounded-md bg-stone-100 text-[10.5px] font-semibold text-stone-700">X (Twitter)</span>
+            <span class="px-2.5 py-1 rounded-md bg-stone-100 text-[10.5px] font-semibold text-stone-700">Twitch</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 2: 跨平台 -->
+      <div class="rounded-3xl bg-white border border-stone-200 p-7 hover-lift">
+        <div class="flex items-center gap-1.5 mb-3">
+          <i data-lucide="apple" class="w-4 h-4 text-stone-700"></i>
+          <i data-lucide="square-terminal" class="w-4 h-4 text-stone-700"></i>
+          <i data-lucide="terminal" class="w-4 h-4 text-stone-700"></i>
+        </div>
+        <h3 class="text-lg font-bold tracking-tight" data-i18n="feat.platform.title">三大系统</h3>
+        <p class="text-[13px] text-stone-600 mt-1.5 leading-relaxed" data-i18n="feat.platform.desc">macOS、Windows、Linux 原生支持</p>
+      </div>
+
+      <!-- Feature 3: 一键安装 -->
+      <div class="rounded-3xl bg-white border border-stone-200 p-7 hover-lift">
+        <i data-lucide="zap" class="w-5 h-5 text-amber-600 mb-3"></i>
+        <h3 class="text-lg font-bold tracking-tight" data-i18n="feat.install.title">零配置启动</h3>
+        <p class="text-[13px] text-stone-600 mt-1.5 leading-relaxed" data-i18n="feat.install.desc">App 自动下载 yt-dlp 内核，无需手动安装依赖</p>
+      </div>
+
+      <!-- Feature 4: 多语言 -->
+      <div class="rounded-3xl bg-white border border-stone-200 p-7 hover-lift">
+        <i data-lucide="languages" class="w-5 h-5 text-amber-600 mb-3"></i>
+        <h3 class="text-lg font-bold tracking-tight" data-i18n="feat.i18n.title">多语言界面</h3>
+        <p class="text-[13px] text-stone-600 mt-1.5 leading-relaxed" data-i18n="feat.i18n.desc">中文 / English / 日本語 一键切换</p>
+      </div>
+
+      <!-- Feature 5: 代理 -->
+      <div class="rounded-3xl bg-white border border-stone-200 p-7 hover-lift">
+        <i data-lucide="wifi" class="w-5 h-5 text-amber-600 mb-3"></i>
+        <h3 class="text-lg font-bold tracking-tight" data-i18n="feat.proxy.title">代理自动检测</h3>
+        <p class="text-[13px] text-stone-600 mt-1.5 leading-relaxed" data-i18n="feat.proxy.desc">识别 Clash / Surge / V2Ray，一键启用</p>
+      </div>
+
+      <!-- Feature 6: 任务流 (big) -->
+      <div class="md:col-span-2 rounded-3xl bg-white border border-stone-200 p-7 hover-lift relative overflow-hidden">
+        <i data-lucide="layers" class="w-5 h-5 text-amber-600 mb-3"></i>
+        <h3 class="text-lg font-bold tracking-tight" data-i18n="feat.stream.title">任务流 · 一屏全见</h3>
+        <p class="text-[13px] text-stone-600 mt-1.5 leading-relaxed max-w-md" data-i18n="feat.stream.desc">进行中任务 + 历史合并为单一时间流，点缩略图即播放。无需翻页，所有操作触手可及。</p>
+      </div>
+
+      <!-- Feature 7: Cookie -->
+      <div class="rounded-3xl bg-white border border-stone-200 p-7 hover-lift">
+        <i data-lucide="cookie" class="w-5 h-5 text-amber-600 mb-3"></i>
+        <h3 class="text-lg font-bold tracking-tight" data-i18n="feat.cookie.title">浏览器 Cookie</h3>
+        <p class="text-[13px] text-stone-600 mt-1.5 leading-relaxed" data-i18n="feat.cookie.desc">一键导入 Chrome / Safari Cookie，解锁登录内容</p>
+      </div>
+
+      <!-- Feature 8: 4K -->
+      <div class="rounded-3xl bg-white border border-stone-200 p-7 hover-lift">
+        <i data-lucide="monitor-play" class="w-5 h-5 text-amber-600 mb-3"></i>
+        <h3 class="text-lg font-bold tracking-tight" data-i18n="feat.quality.title">4K HDR · 多画质</h3>
+        <p class="text-[13px] text-stone-600 mt-1.5 leading-relaxed" data-i18n="feat.quality.desc">2160p / 1440p / 1080p 自由切换</p>
+      </div>
+
+      <!-- Feature 9: Privacy -->
+      <div class="rounded-3xl bg-white border border-stone-200 p-7 hover-lift">
+        <i data-lucide="shield-check" class="w-5 h-5 text-amber-600 mb-3"></i>
+        <h3 class="text-lg font-bold tracking-tight" data-i18n="feat.privacy.title">隐私本地化</h3>
+        <p class="text-[13px] text-stone-600 mt-1.5 leading-relaxed" data-i18n="feat.privacy.desc">所有解析下载本机进行，零遥测</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Platforms -->
+<section id="platforms" class="py-20">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="text-center mb-12">
+      <span class="text-[11px] font-bold tracking-widest text-amber-700 uppercase" data-i18n="section.platforms">支持平台</span>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mt-3" data-i18n="platforms.title">想下哪个，就下哪个</h2>
+      <p class="text-stone-600 mt-3 text-[15px]" data-i18n="platforms.subtitle">基于 yt-dlp 内核，覆盖全球主流视频网站。</p>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+        <span class="text-[12.5px] font-bold">YouTube</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-[#00A1D6]"></span>
+        <span class="text-[12.5px] font-bold">Bilibili</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-black"></span>
+        <span class="text-[12.5px] font-bold">TikTok</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-black"></span>
+        <span class="text-[12.5px] font-bold">抖音</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+        <span class="text-[12.5px] font-bold">小红书</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-orange-500"></span>
+        <span class="text-[12.5px] font-bold">快手</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-black"></span>
+        <span class="text-[12.5px] font-bold">X (Twitter)</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+        <span class="text-[12.5px] font-bold">Twitch</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-pink-500"></span>
+        <span class="text-[12.5px] font-bold">Instagram</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+        <span class="text-[12.5px] font-bold">Facebook</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-white border border-stone-200 hover-lift">
+        <span class="w-2 h-2 rounded-full bg-orange-600"></span>
+        <span class="text-[12.5px] font-bold">SoundCloud</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 h-14 rounded-xl bg-stone-100 border border-stone-200">
+        <span class="text-[11.5px] font-semibold text-stone-500" data-i18n="platforms.more">+1790 更多…</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 Steps -->
+<section class="py-20 bg-gradient-to-br from-stone-100/60 to-amber-50/30">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="text-center mb-12">
+      <span class="text-[11px] font-bold tracking-widest text-amber-700 uppercase" data-i18n="section.how">如何使用</span>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mt-3" data-i18n="how.title">三步搞定</h2>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div class="bg-white rounded-3xl border border-stone-200 p-7 hover-lift relative">
+        <div class="absolute -top-4 -left-4 w-12 h-12 rounded-2xl bg-grad text-white font-extrabold text-xl flex items-center justify-center shadow-lg num">1</div>
+        <div class="mt-3">
+          <div class="flex items-center justify-center h-32 mb-4 bg-stone-50 rounded-2xl">
+            <i data-lucide="clipboard-paste" class="w-12 h-12 text-amber-600" stroke-width="1.4"></i>
+          </div>
+          <h3 class="text-lg font-bold tracking-tight" data-i18n="how.s1.title">粘贴链接</h3>
+          <p class="text-[13px] text-stone-600 mt-2 leading-relaxed" data-i18n="how.s1.desc">复制视频网址，粘贴到 App。支持一次多个。</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-3xl border border-stone-200 p-7 hover-lift relative">
+        <div class="absolute -top-4 -left-4 w-12 h-12 rounded-2xl bg-grad text-white font-extrabold text-xl flex items-center justify-center shadow-lg num">2</div>
+        <div class="mt-3">
+          <div class="flex items-center justify-center h-32 mb-4 bg-stone-50 rounded-2xl">
+            <i data-lucide="search" class="w-12 h-12 text-amber-600" stroke-width="1.4"></i>
+          </div>
+          <h3 class="text-lg font-bold tracking-tight" data-i18n="how.s2.title">自动解析</h3>
+          <p class="text-[13px] text-stone-600 mt-2 leading-relaxed" data-i18n="how.s2.desc">App 自动获取视频标题、封面、画质选项。</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-3xl border border-stone-200 p-7 hover-lift relative">
+        <div class="absolute -top-4 -left-4 w-12 h-12 rounded-2xl bg-grad text-white font-extrabold text-xl flex items-center justify-center shadow-lg num">3</div>
+        <div class="mt-3">
+          <div class="flex items-center justify-center h-32 mb-4 bg-stone-50 rounded-2xl">
+            <i data-lucide="download" class="w-12 h-12 text-amber-600" stroke-width="1.4"></i>
+          </div>
+          <h3 class="text-lg font-bold tracking-tight" data-i18n="how.s3.title">一键下载</h3>
+          <p class="text-[13px] text-stone-600 mt-2 leading-relaxed" data-i18n="how.s3.desc">点下载按钮，实时进度可见。完成后直接播放。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Comparison -->
+<section id="compare" class="py-20">
+  <div class="max-w-4xl mx-auto px-6">
+    <div class="text-center mb-12">
+      <span class="text-[11px] font-bold tracking-widest text-amber-700 uppercase" data-i18n="section.compare">对比</span>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mt-3" data-i18n="compare.title">和其他工具有什么不同？</h2>
+    </div>
+
+    <div class="rounded-2xl bg-white border border-stone-200 overflow-hidden shadow-sm">
+      <table class="w-full">
+        <thead class="bg-stone-50 border-b border-stone-200">
+          <tr>
+            <th class="text-left text-[12px] font-bold text-stone-500 uppercase tracking-wider px-5 py-3" data-i18n="compare.col.feat">特性</th>
+            <th class="text-center text-[12px] font-bold text-stone-500 uppercase tracking-wider px-3 py-3">Downie 4</th>
+            <th class="text-center text-[12px] font-bold text-stone-500 uppercase tracking-wider px-3 py-3">Folx</th>
+            <th class="text-center px-3 py-3 bg-amber-50">
+              <div class="text-[12px] font-bold text-amber-700 uppercase tracking-wider" data-i18n="brand">飞鸟下载器</div>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="text-[13px]">
+          <tr class="border-b border-stone-100">
+            <td class="px-5 py-3 font-medium" data-i18n="compare.row.price">价格</td>
+            <td class="px-3 py-3 text-center text-stone-600 num">$19.99</td>
+            <td class="px-3 py-3 text-center text-stone-600 num">$19.95</td>
+            <td class="px-3 py-3 text-center font-bold text-amber-700 bg-amber-50/50" data-i18n="compare.price.free">完全免费</td>
+          </tr>
+          <tr class="border-b border-stone-100">
+            <td class="px-5 py-3 font-medium" data-i18n="compare.row.os">系统支持</td>
+            <td class="px-3 py-3 text-center text-[11.5px] text-stone-500">macOS only</td>
+            <td class="px-3 py-3 text-center text-[11.5px] text-stone-500">macOS only</td>
+            <td class="px-3 py-3 text-center bg-amber-50/50 font-bold text-amber-700 text-[11.5px]">3 大系统</td>
+          </tr>
+          <tr class="border-b border-stone-100">
+            <td class="px-5 py-3 font-medium" data-i18n="compare.row.lang">中文界面</td>
+            <td class="px-3 py-3 text-center"><i data-lucide="check" class="w-4 h-4 text-emerald-600 inline" stroke-width="2.4"></i></td>
+            <td class="px-3 py-3 text-center"><i data-lucide="check" class="w-4 h-4 text-emerald-600 inline" stroke-width="2.4"></i></td>
+            <td class="px-3 py-3 text-center bg-amber-50/50 font-medium text-amber-700 text-[11.5px]" data-i18n="compare.lang.value">4 语言</td>
+          </tr>
+          <tr class="border-b border-stone-100">
+            <td class="px-5 py-3 font-medium" data-i18n="compare.row.proxy">代理自动检测</td>
+            <td class="px-3 py-3 text-center"><i data-lucide="x" class="w-4 h-4 text-stone-400 inline"></i></td>
+            <td class="px-3 py-3 text-center"><i data-lucide="x" class="w-4 h-4 text-stone-400 inline"></i></td>
+            <td class="px-3 py-3 text-center bg-amber-50/50"><i data-lucide="check" class="w-4 h-4 text-emerald-600 inline" stroke-width="3"></i></td>
+          </tr>
+          <tr class="border-b border-stone-100">
+            <td class="px-5 py-3 font-medium" data-i18n="compare.row.size">App 体积</td>
+            <td class="px-3 py-3 text-center text-stone-600 num">38 MB</td>
+            <td class="px-3 py-3 text-center text-stone-600 num">35 MB</td>
+            <td class="px-3 py-3 text-center bg-amber-50/50 font-bold text-amber-700 num">15 MB</td>
+          </tr>
+          <tr>
+            <td class="px-5 py-3 font-medium" data-i18n="compare.row.opensource">开源</td>
+            <td class="px-3 py-3 text-center"><i data-lucide="x" class="w-4 h-4 text-stone-400 inline"></i></td>
+            <td class="px-3 py-3 text-center"><i data-lucide="x" class="w-4 h-4 text-stone-400 inline"></i></td>
+            <td class="px-3 py-3 text-center bg-amber-50/50"><i data-lucide="check" class="w-4 h-4 text-emerald-600 inline" stroke-width="3"></i></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="py-20 bg-stone-100/40">
+  <div class="max-w-3xl mx-auto px-6">
+    <div class="text-center mb-12">
+      <span class="text-[11px] font-bold tracking-widest text-amber-700 uppercase" data-i18n="section.faq">常见问题</span>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mt-3" data-i18n="faq.title">你想问的都在这</h2>
+    </div>
+
+    <div class="space-y-3">
+      <details class="group rounded-2xl bg-white border border-stone-200 p-5 cursor-pointer">
+        <summary class="flex items-center justify-between font-semibold text-[14.5px]">
+          <span data-i18n="faq.q1">第一次启动需要做什么？</span>
+          <i data-lucide="plus" class="w-4 h-4 text-stone-400 group-open:rotate-45 transition"></i>
+        </summary>
+        <p class="text-[13px] text-stone-600 mt-3 leading-relaxed" data-i18n="faq.a1">双击安装包把 App 拖到「应用程序」。首次启动会检测 yt-dlp，未安装时点 [一键安装] 自动下载内核，约 10-30 秒。完成后立即可用。</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white border border-stone-200 p-5 cursor-pointer">
+        <summary class="flex items-center justify-between font-semibold text-[14.5px]">
+          <span data-i18n="faq.q2">需要 ffmpeg 吗？</span>
+          <i data-lucide="plus" class="w-4 h-4 text-stone-400 group-open:rotate-45 transition"></i>
+        </summary>
+        <p class="text-[13px] text-stone-600 mt-3 leading-relaxed" data-i18n="faq.a2">可选。下载单文件视频不需要；要合并 4K 自适应流需要。macOS: brew install ffmpeg / Windows: choco install ffmpeg / Linux: 包管理器安装。</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white border border-stone-200 p-5 cursor-pointer">
+        <summary class="flex items-center justify-between font-semibold text-[14.5px]">
+          <span data-i18n="faq.q3">下载到哪？</span>
+          <i data-lucide="plus" class="w-4 h-4 text-stone-400 group-open:rotate-45 transition"></i>
+        </summary>
+        <p class="text-[13px] text-stone-600 mt-3 leading-relaxed" data-i18n="faq.a3">默认 ~/Downloads/FeiNiao/。可在设置里改成任意路径。</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white border border-stone-200 p-5 cursor-pointer">
+        <summary class="flex items-center justify-between font-semibold text-[14.5px]">
+          <span data-i18n="faq.q4">YouTube 解析不了？</span>
+          <i data-lucide="plus" class="w-4 h-4 text-stone-400 group-open:rotate-45 transition"></i>
+        </summary>
+        <p class="text-[13px] text-stone-600 mt-3 leading-relaxed" data-i18n="faq.a4">中国大陆访问 YouTube 需要代理。App 首次启动会自动扫描 Clash / Surge / V2Ray 并弹出 [启用] 提示。</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white border border-stone-200 p-5 cursor-pointer">
+        <summary class="flex items-center justify-between font-semibold text-[14.5px]">
+          <span data-i18n="faq.q5">Bilibili 提示 HTTP 412？</span>
+          <i data-lucide="plus" class="w-4 h-4 text-stone-400 group-open:rotate-45 transition"></i>
+        </summary>
+        <p class="text-[13px] text-stone-600 mt-3 leading-relaxed" data-i18n="faq.a5">B 站对部分 IP 做限流。App 自动 fallback 到 Chrome / Edge / Firefox 等浏览器 Cookies，仍失败可在设置中手动选浏览器或使用代理。</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white border border-stone-200 p-5 cursor-pointer">
+        <summary class="flex items-center justify-between font-semibold text-[14.5px]">
+          <span data-i18n="faq.q6">macOS「无法打开，开发者无法验证」？</span>
+          <i data-lucide="plus" class="w-4 h-4 text-stone-400 group-open:rotate-45 transition"></i>
+        </summary>
+        <p class="text-[13px] text-stone-600 mt-3 leading-relaxed" data-i18n="faq.a6">目前未做苹果公证。右键点击 App → [打开] → 在弹窗中再点 [打开]。或在 [系统设置 → 隐私与安全性] 点 [仍要打开]。</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- Download CTA -->
+<section id="download" class="py-24">
+  <div class="max-w-4xl mx-auto px-6 text-center">
+    <div class="float-soft inline-block mb-6">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none">
+        <defs><linearGradient id="dl-bird" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#D97706" /><stop offset="50%" stop-color="#CA8A04" /><stop offset="100%" stop-color="#EAB308" /></linearGradient></defs>
+        <path d="M3 12 C6 7, 11 6, 15 10 C18 7, 22 8, 21 12 C19 16, 14 15, 12 12 C10 15, 5 16, 3 12Z" fill="url(#dl-bird)" />
+        <path d="M3 12 C1 13, 1 15, 3 14" fill="#1C1917" opacity="0.7" />
+      </svg>
+    </div>
+
+    <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight mb-4">
+      <span class="text-grad" data-i18n="dl.title.1">立即开始</span><br />
+      <span class="text-stone-950" data-i18n="dl.title.2">享受丝滑下载</span>
+    </h2>
+    <p class="text-stone-600 text-[15.5px] max-w-xl mx-auto mb-10" data-i18n="dl.subtitle">免费 · 无广告 · 无遥测 · 开源</p>
+
+    <!-- Platform download grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto">
+      <a id="dl-mac" href="https://github.com/Yorushika-fan/feiniao-downloader/releases/latest" target="_blank" rel="noopener" class="group flex flex-col items-center gap-2.5 p-6 rounded-2xl bg-white border-2 border-stone-200 hover:border-amber-400 hover-lift">
+        <i data-lucide="apple" class="w-9 h-9 text-stone-800 group-hover:text-amber-600 transition"></i>
+        <div>
+          <div class="font-bold text-[14px]">macOS</div>
+          <div id="dl-mac-size" class="text-[11px] text-stone-500 num mt-0.5">.dmg</div>
+        </div>
+        <div class="text-[10.5px] text-amber-700 font-semibold flex items-center gap-1">
+          <span data-i18n="dl.available">立即下载</span>
+          <i data-lucide="arrow-right" class="w-3 h-3"></i>
+        </div>
+      </a>
+
+      <a id="dl-win" href="https://github.com/Yorushika-fan/feiniao-downloader/releases/latest" target="_blank" rel="noopener" class="group flex flex-col items-center gap-2.5 p-6 rounded-2xl bg-white border-2 border-stone-200 hover:border-amber-400 hover-lift">
+        <i data-lucide="square-terminal" class="w-9 h-9 text-stone-800 group-hover:text-amber-600 transition"></i>
+        <div>
+          <div class="font-bold text-[14px]">Windows</div>
+          <div id="dl-win-size" class="text-[11px] text-stone-500 num mt-0.5">.exe</div>
+        </div>
+        <div class="text-[10.5px] text-amber-700 font-semibold flex items-center gap-1">
+          <span data-i18n="dl.available">立即下载</span>
+          <i data-lucide="arrow-right" class="w-3 h-3"></i>
+        </div>
+      </a>
+
+      <a id="dl-linux" href="https://github.com/Yorushika-fan/feiniao-downloader/releases/latest" target="_blank" rel="noopener" class="group flex flex-col items-center gap-2.5 p-6 rounded-2xl bg-white border-2 border-stone-200 hover:border-amber-400 hover-lift">
+        <i data-lucide="terminal" class="w-9 h-9 text-stone-800 group-hover:text-amber-600 transition"></i>
+        <div>
+          <div class="font-bold text-[14px]">Linux</div>
+          <div id="dl-linux-size" class="text-[11px] text-stone-500 num mt-0.5">.AppImage</div>
+        </div>
+        <div class="text-[10.5px] text-amber-700 font-semibold flex items-center gap-1">
+          <span data-i18n="dl.available">立即下载</span>
+          <i data-lucide="arrow-right" class="w-3 h-3"></i>
+        </div>
+      </a>
+    </div>
+
+    <div class="mt-6 text-[11.5px] text-stone-500 num" data-i18n="dl.version">v1.3.0 · macOS 11+ · Apple Silicon 原生 · 兼容 Intel</div>
+
+    <div class="flex items-center justify-center gap-6 mt-10 text-[11.5px] text-stone-500">
+      <div class="flex items-center gap-1.5">
+        <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-500"></i>
+        <span data-i18n="dl.tag.local">本地处理</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i>
+        <span data-i18n="dl.tag.fast">极速启动</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <i data-lucide="heart" class="w-3.5 h-3.5 text-rose-500"></i>
+        <span data-i18n="dl.tag.foss">开源免费</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="border-t border-stone-200 py-10">
+  <div class="max-w-5xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-[12px] text-stone-500">
+    <div class="flex items-center gap-2">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <defs><linearGradient id="ft-bird" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#D97706" /><stop offset="100%" stop-color="#EAB308" /></linearGradient></defs>
+        <path d="M3 12 C6 7, 11 6, 15 10 C18 7, 22 8, 21 12 C19 16, 14 15, 12 12 C10 15, 5 16, 3 12Z" fill="url(#ft-bird)" />
+      </svg>
+      <span class="font-semibold text-stone-700" data-i18n="brand">飞鸟下载器</span>
+      <span class="text-stone-300">·</span>
+      <span id="footer-version" class="num">v1.3.0</span>
+    </div>
+    <div class="text-center text-[11px] text-stone-400 max-w-md" data-i18n="footer.disclaimer">免责声明：本工具仅用于下载用户合法访问的内容。请遵守当地法律和平台服务条款。</div>
+    <div class="flex items-center gap-3">
+      <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener" class="hover:text-stone-900 transition">yt-dlp ↗</a>
+      <a href="#faq" class="hover:text-stone-900 transition" data-i18n="nav.faq">常见问题</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ──────── i18n ────────
+const I18N = {
+  'zh-CN': {
+    'brand': '飞鸟下载器',
+    'nav.features': '特性', 'nav.platforms': '支持平台', 'nav.compare': '对比', 'nav.faq': '常见问题', 'nav.cta': '免费下载',
+    'hero.badge': '{ver} · macOS · Windows · Linux',
+    'hero.title.1': '极简的', 'hero.title.2': '视频下载', 'hero.title.3': '工具',
+    'hero.subtitle': '基于 yt-dlp，支持 1800+ 视频平台。粘贴链接、自动解析、一键下载。',
+    'hero.cta.primary': '免费下载', 'hero.cta.secondary': '查看特性',
+    'mock.tab1': '视频', 'mock.tab2': '短视频', 'mock.download2': '下载 2 个', 'mock.parsed': '已解析',
+    'section.features': '特性',
+    'features.title': '为下载体验做尽一切优化',
+    'features.subtitle': '让小白也能 5 秒上手，让极客有可深入的细节。',
+    'feat.platforms.title': '1800+ 视频平台',
+    'feat.platforms.desc': 'YouTube、Bilibili、X、TikTok、Twitch、Instagram… 应有尽有。粘贴链接即可，无需配置。',
+    'feat.platform.title': '三大系统',
+    'feat.platform.desc': 'macOS、Windows、Linux 原生支持',
+    'feat.install.title': '零配置启动',
+    'feat.install.desc': 'App 自动下载 yt-dlp 内核，无需手动安装依赖',
+    'feat.i18n.title': '多语言界面',
+    'feat.i18n.desc': '中文 / English / 日本語 一键切换',
+    'feat.proxy.title': '代理自动检测',
+    'feat.proxy.desc': '识别 Clash / Surge / V2Ray，一键启用',
+    'feat.stream.title': '任务流 · 一屏全见',
+    'feat.stream.desc': '进行中任务 + 历史合并为单一时间流，点缩略图即播放。无需翻页，所有操作触手可及。',
+    'feat.cookie.title': '浏览器 Cookie',
+    'feat.cookie.desc': '一键导入 Chrome / Safari Cookie，解锁登录内容',
+    'feat.quality.title': '4K HDR · 多画质',
+    'feat.quality.desc': '2160p / 1440p / 1080p 自由切换',
+    'feat.privacy.title': '隐私本地化',
+    'feat.privacy.desc': '所有解析下载本机进行，零遥测',
+    'section.platforms': '支持平台',
+    'platforms.title': '想下哪个，就下哪个',
+    'platforms.subtitle': '基于 yt-dlp 内核，覆盖全球主流视频网站。',
+    'platforms.more': '+1790 更多…',
+    'section.how': '如何使用', 'how.title': '三步搞定',
+    'how.s1.title': '粘贴链接', 'how.s1.desc': '复制视频网址，粘贴到 App。支持一次多个。',
+    'how.s2.title': '自动解析', 'how.s2.desc': 'App 自动获取视频标题、封面、画质选项。',
+    'how.s3.title': '一键下载', 'how.s3.desc': '点下载按钮，实时进度可见。完成后直接播放。',
+    'section.compare': '对比', 'compare.title': '和其他工具有什么不同？',
+    'compare.col.feat': '特性', 'compare.row.price': '价格', 'compare.price.free': '完全免费',
+    'compare.row.os': '系统支持', 'compare.row.lang': '中文界面', 'compare.lang.value': '4 语言',
+    'compare.row.proxy': '代理自动检测', 'compare.row.size': 'App 体积', 'compare.row.opensource': '开源',
+    'section.faq': '常见问题', 'faq.title': '你想问的都在这',
+    'faq.q1': '第一次启动需要做什么？',
+    'faq.a1': '双击安装包把 App 拖到「应用程序」。首次启动会检测 yt-dlp，未安装时点 [一键安装] 自动下载内核，约 10-30 秒。完成后立即可用。',
+    'faq.q2': '需要 ffmpeg 吗？',
+    'faq.a2': '可选。下载单文件视频不需要；要合并 4K 自适应流需要。macOS: brew install ffmpeg / Windows: choco install ffmpeg / Linux: 包管理器安装。',
+    'faq.q3': '下载到哪？',
+    'faq.a3': '默认 ~/Downloads/FeiNiao/。可在设置里改成任意路径。',
+    'faq.q4': 'YouTube 解析不了？',
+    'faq.a4': '中国大陆访问 YouTube 需要代理。App 首次启动会自动扫描 Clash / Surge / V2Ray 并弹出 [启用] 提示。',
+    'faq.q5': 'Bilibili 提示 HTTP 412？',
+    'faq.a5': 'B 站对部分 IP 做限流。App 自动 fallback 到 Chrome / Edge / Firefox 等浏览器 Cookies，仍失败可在设置中手动选浏览器或使用代理。',
+    'faq.q6': 'macOS「无法打开，开发者无法验证」？',
+    'faq.a6': '目前未做苹果公证。右键点击 App → [打开] → 在弹窗中再点 [打开]。或在 [系统设置 → 隐私与安全性] 点 [仍要打开]。',
+    'dl.title.1': '立即开始', 'dl.title.2': '享受丝滑下载',
+    'dl.subtitle': '免费 · 无广告 · 无遥测 · 开源',
+    'dl.available': '立即下载', 'dl.soon': '即将发布',
+    'dl.version': '{ver} · macOS 11+ · Apple Silicon 原生 · 兼容 Intel',
+    'dl.tag.local': '本地处理', 'dl.tag.fast': '极速启动', 'dl.tag.foss': '开源免费',
+    'footer.disclaimer': '免责声明：本工具仅用于下载用户合法访问的内容。请遵守当地法律和平台服务条款。',
+  },
+  'zh-TW': {
+    'brand': '飛鳥下載器',
+    'nav.features': '特性', 'nav.platforms': '支援平台', 'nav.compare': '對比', 'nav.faq': '常見問題', 'nav.cta': '免費下載',
+    'hero.badge': '{ver} · macOS · Windows · Linux',
+    'hero.title.1': '極簡的', 'hero.title.2': '影片下載', 'hero.title.3': '工具',
+    'hero.subtitle': '基於 yt-dlp，支援 1800+ 影片平台。貼上連結、自動解析、一鍵下載。',
+    'hero.cta.primary': '免費下載', 'hero.cta.secondary': '查看特性',
+    'mock.tab1': '影片', 'mock.tab2': '短影片', 'mock.download2': '下載 2 個', 'mock.parsed': '已解析',
+    'section.features': '特性',
+    'features.title': '為下載體驗做盡一切優化',
+    'features.subtitle': '讓新手 5 秒上手，讓玩家有可深入的細節。',
+    'feat.platforms.title': '1800+ 影片平台',
+    'feat.platforms.desc': 'YouTube、Bilibili、X、TikTok、Twitch、Instagram… 應有盡有。貼上連結即可，無需設定。',
+    'feat.platform.title': '三大系統', 'feat.platform.desc': 'macOS、Windows、Linux 原生支援',
+    'feat.install.title': '零設定啟動', 'feat.install.desc': 'App 自動下載 yt-dlp 核心，無需手動安裝依賴',
+    'feat.i18n.title': '多語言介面', 'feat.i18n.desc': '中文 / English / 日本語 一鍵切換',
+    'feat.proxy.title': '代理自動偵測', 'feat.proxy.desc': '識別 Clash / Surge / V2Ray，一鍵啟用',
+    'feat.stream.title': '任務流 · 一螢全見',
+    'feat.stream.desc': '進行中任務 + 歷史合併為單一時間流，點縮圖即播放。',
+    'feat.cookie.title': '瀏覽器 Cookie', 'feat.cookie.desc': '一鍵匯入 Chrome / Safari Cookie',
+    'feat.quality.title': '4K HDR · 多畫質', 'feat.quality.desc': '2160p / 1440p / 1080p 自由切換',
+    'feat.privacy.title': '隱私本地化', 'feat.privacy.desc': '所有解析下載本機進行，零遙測',
+    'section.platforms': '支援平台', 'platforms.title': '想下哪個，就下哪個',
+    'platforms.subtitle': '基於 yt-dlp 核心，涵蓋全球主流影片網站。',
+    'platforms.more': '+1790 更多…',
+    'section.how': '如何使用', 'how.title': '三步搞定',
+    'how.s1.title': '貼上連結', 'how.s1.desc': '複製影片網址，貼到 App。支援一次多個。',
+    'how.s2.title': '自動解析', 'how.s2.desc': 'App 自動取得影片標題、封面、畫質選項。',
+    'how.s3.title': '一鍵下載', 'how.s3.desc': '點下載按鈕，即時進度可見。完成後直接播放。',
+    'section.compare': '對比', 'compare.title': '和其他工具有什麼不同？',
+    'compare.col.feat': '特性', 'compare.row.price': '價格', 'compare.price.free': '完全免費',
+    'compare.row.os': '系統支援', 'compare.row.lang': '中文介面', 'compare.lang.value': '4 語言',
+    'compare.row.proxy': '代理自動偵測', 'compare.row.size': 'App 體積', 'compare.row.opensource': '開源',
+    'section.faq': '常見問題', 'faq.title': '你想問的都在這',
+    'faq.q1': '第一次啟動需要做什麼？',
+    'faq.a1': '雙擊安裝包把 App 拖到「應用程式」。首次啟動會偵測 yt-dlp，未安裝時點 [一鍵安裝] 自動下載核心。',
+    'faq.q2': '需要 ffmpeg 嗎？',
+    'faq.a2': '選用。下載單檔影片不需要；要合併 4K 自適應流需要。',
+    'faq.q3': '下載到哪？', 'faq.a3': '預設 ~/Downloads/FeiNiao/。可在設定裡改成任意路徑。',
+    'faq.q4': 'YouTube 解析不了？', 'faq.a4': '中國大陸存取 YouTube 需要代理。App 首次啟動會自動掃描並彈出 [啟用] 提示。',
+    'faq.q5': 'Bilibili 提示 HTTP 412？', 'faq.a5': 'B 站對部分 IP 做限流。App 自動 fallback 到瀏覽器 Cookies。',
+    'faq.q6': 'macOS「無法開啟，開發者無法驗證」？',
+    'faq.a6': '目前未做蘋果公證。右鍵點擊 App → [打開] → 在彈窗中再點 [打開]。',
+    'dl.title.1': '立即開始', 'dl.title.2': '享受絲滑下載',
+    'dl.subtitle': '免費 · 無廣告 · 無遙測 · 開源',
+    'dl.available': '立即下載', 'dl.soon': '即將發布',
+    'dl.version': '{ver} · macOS 11+ · Apple Silicon 原生 · 相容 Intel',
+    'dl.tag.local': '本機處理', 'dl.tag.fast': '極速啟動', 'dl.tag.foss': '開源免費',
+    'footer.disclaimer': '免責聲明：本工具僅用於下載使用者合法存取的內容。請遵守當地法律和平台服務條款。',
+  },
+  'en': {
+    'brand': 'FeiNiao Downloader',
+    'nav.features': 'Features', 'nav.platforms': 'Platforms', 'nav.compare': 'Compare', 'nav.faq': 'FAQ', 'nav.cta': 'Download',
+    'hero.badge': '{ver} · macOS · Windows · Linux',
+    'hero.title.1': 'A minimal', 'hero.title.2': 'video downloader', 'hero.title.3': '',
+    'hero.subtitle': 'Powered by yt-dlp. 1800+ supported sites. Paste link, parse automatically, download with one click.',
+    'hero.cta.primary': 'Download Free', 'hero.cta.secondary': 'See features',
+    'mock.tab1': 'Video', 'mock.tab2': 'Shorts', 'mock.download2': 'Download 2', 'mock.parsed': 'Parsed',
+    'section.features': 'Features',
+    'features.title': 'Crafted for the smoothest experience',
+    'features.subtitle': 'Five seconds for beginners. Endless depth for power users.',
+    'feat.platforms.title': '1800+ video sites',
+    'feat.platforms.desc': 'YouTube, Bilibili, X, TikTok, Twitch, Instagram… all covered. Just paste, no configuration.',
+    'feat.platform.title': 'Three OSes', 'feat.platform.desc': 'Native macOS, Windows, Linux',
+    'feat.install.title': 'Zero setup', 'feat.install.desc': 'App auto-downloads the yt-dlp core. No manual deps.',
+    'feat.i18n.title': 'Multi-language', 'feat.i18n.desc': 'Chinese / English / 日本語 / 繁中, one click',
+    'feat.proxy.title': 'Auto proxy detect', 'feat.proxy.desc': 'Detects Clash / Surge / V2Ray, enable with one click',
+    'feat.stream.title': 'Task stream · everything visible',
+    'feat.stream.desc': 'Active downloads + history merged into one timeline. Click thumbnail to play. No page switching.',
+    'feat.cookie.title': 'Browser cookies', 'feat.cookie.desc': 'Import Chrome / Safari cookies in one click',
+    'feat.quality.title': '4K HDR · all qualities', 'feat.quality.desc': '2160p / 1440p / 1080p — your choice',
+    'feat.privacy.title': 'Local-first privacy', 'feat.privacy.desc': 'All parsing and downloads stay on your machine',
+    'section.platforms': 'Supported sites', 'platforms.title': 'Whatever you want, we handle it',
+    'platforms.subtitle': 'Backed by yt-dlp. Covers all major global video sites.',
+    'platforms.more': '+1790 more…',
+    'section.how': 'How it works', 'how.title': 'Three steps',
+    'how.s1.title': 'Paste link', 'how.s1.desc': 'Copy the URL, paste it into the app. One or many at once.',
+    'how.s2.title': 'Auto-parse', 'how.s2.desc': 'App auto-fetches title, thumbnail, available qualities.',
+    'how.s3.title': 'One-click download', 'how.s3.desc': 'Hit download. Real-time progress. Click to play when done.',
+    'section.compare': 'Comparison', 'compare.title': 'How is it different?',
+    'compare.col.feat': 'Feature', 'compare.row.price': 'Price', 'compare.price.free': 'Free',
+    'compare.row.os': 'OS support', 'compare.row.lang': 'CJK locale', 'compare.lang.value': '4 langs',
+    'compare.row.proxy': 'Auto proxy', 'compare.row.size': 'App size', 'compare.row.opensource': 'Open source',
+    'section.faq': 'FAQ', 'faq.title': 'Frequently asked',
+    'faq.q1': "What do I do on first launch?",
+    'faq.a1': "Drag the app to Applications. On first launch it detects yt-dlp; if missing, tap [Install] to fetch the core (about 10-30 seconds).",
+    'faq.q2': "Do I need ffmpeg?",
+    'faq.a2': "Optional. Single-file videos don't need it; merging 4K adaptive streams does. macOS: brew install ffmpeg / Windows: choco install ffmpeg / Linux: your package manager.",
+    'faq.q3': "Where do downloads go?",
+    'faq.a3': "Default: ~/Downloads/FeiNiao/. Change it anywhere in settings.",
+    'faq.q4': "YouTube fails to parse?",
+    'faq.a4': "From mainland China, YouTube needs a proxy. The app scans Clash/Surge/V2Ray on first run and offers a one-click enable.",
+    'faq.q5': "Bilibili shows HTTP 412?",
+    'faq.a5': "Bilibili rate-limits some IPs. The app auto-falls-back through Chrome/Edge/Firefox cookies. If it still fails, manually pick a browser in settings or use a proxy.",
+    'faq.q6': "macOS says 'cannot verify developer'?",
+    'faq.a6': "Not yet Apple-notarized. Right-click app → [Open] → confirm in dialog. Or System Settings → Privacy & Security → [Open Anyway].",
+    'dl.title.1': 'Start now', 'dl.title.2': 'Enjoy smooth downloading',
+    'dl.subtitle': 'Free · No ads · No telemetry · Open source',
+    'dl.available': 'Download', 'dl.soon': 'Coming soon',
+    'dl.version': '{ver} · macOS 11+ · Apple Silicon native · Intel supported',
+    'dl.tag.local': 'Local processing', 'dl.tag.fast': 'Fast startup', 'dl.tag.foss': 'Open source',
+    'footer.disclaimer': 'Disclaimer: This tool is for downloading content you have legal access to. Respect local laws and platform ToS.',
+  },
+  'ja': {
+    'brand': '飛鳥ダウンローダー',
+    'nav.features': '機能', 'nav.platforms': '対応サイト', 'nav.compare': '比較', 'nav.faq': 'よくある質問', 'nav.cta': '無料ダウンロード',
+    'hero.badge': '{ver} · macOS · Windows · Linux',
+    'hero.title.1': 'シンプルな', 'hero.title.2': '動画ダウンロード', 'hero.title.3': 'ツール',
+    'hero.subtitle': 'yt-dlp ベース、1800+ サイトに対応。リンクを貼って自動解析、ワンクリックで保存。',
+    'hero.cta.primary': '無料ダウンロード', 'hero.cta.secondary': '機能を見る',
+    'mock.tab1': '動画', 'mock.tab2': 'ショート', 'mock.download2': '2 件ダウンロード', 'mock.parsed': '解析済',
+    'section.features': '機能',
+    'features.title': 'ダウンロード体験を徹底的に磨き上げた',
+    'features.subtitle': '初心者は 5 秒で、上級者には深い設定を。',
+    'feat.platforms.title': '1800+ サイト対応',
+    'feat.platforms.desc': 'YouTube、Bilibili、X、TikTok、Twitch、Instagram… 全部対応。設定不要。',
+    'feat.platform.title': '3 OS 対応', 'feat.platform.desc': 'macOS、Windows、Linux ネイティブ',
+    'feat.install.title': '設定ゼロ', 'feat.install.desc': 'App が自動で yt-dlp 本体を取得。手動依存なし。',
+    'feat.i18n.title': '多言語対応', 'feat.i18n.desc': '中文 / English / 日本語 ワンクリック切替',
+    'feat.proxy.title': 'プロキシ自動検出', 'feat.proxy.desc': 'Clash / Surge / V2Ray を認識、ワンクリックで有効化',
+    'feat.stream.title': 'タスクストリーム',
+    'feat.stream.desc': '進行中タスクと履歴を 1 つのタイムラインに統合。サムネクリックで再生。',
+    'feat.cookie.title': 'ブラウザ Cookie', 'feat.cookie.desc': 'Chrome / Safari Cookie をワンクリックで取り込み',
+    'feat.quality.title': '4K HDR · 全画質', 'feat.quality.desc': '2160p / 1440p / 1080p 自由に選択',
+    'feat.privacy.title': 'ローカルプライバシー', 'feat.privacy.desc': '全処理がローカルで完結。テレメトリなし。',
+    'section.platforms': '対応サイト', 'platforms.title': '何でもダウンロード',
+    'platforms.subtitle': 'yt-dlp ベース。世界の主要動画サイトをカバー。',
+    'platforms.more': '+1790 件…',
+    'section.how': '使い方', 'how.title': '3 ステップ',
+    'how.s1.title': 'リンクを貼る', 'how.s1.desc': 'URL をコピーして App に貼り付け。複数同時も可。',
+    'how.s2.title': '自動解析', 'how.s2.desc': 'App がタイトル、サムネ、画質を自動取得。',
+    'how.s3.title': 'ワンクリック保存', 'how.s3.desc': 'ボタンを押すだけ。進捗もリアルタイム。',
+    'section.compare': '比較', 'compare.title': '他のツールとの違いは？',
+    'compare.col.feat': '機能', 'compare.row.price': '価格', 'compare.price.free': '完全無料',
+    'compare.row.os': '対応 OS', 'compare.row.lang': '日本語 UI', 'compare.lang.value': '4 言語',
+    'compare.row.proxy': 'プロキシ自動', 'compare.row.size': 'App サイズ', 'compare.row.opensource': 'オープンソース',
+    'section.faq': 'よくある質問', 'faq.title': '気になる質問',
+    'faq.q1': '初回起動で何をすればいい？',
+    'faq.a1': 'インストーラを「アプリケーション」にドラッグ。初回起動時に yt-dlp を検出。未インストールなら [一括インストール] をクリック。',
+    'faq.q2': 'ffmpeg は必要？',
+    'faq.a2': 'オプション。単一ファイルの動画なら不要。4K アダプティブストリーム結合には必要。',
+    'faq.q3': 'どこにダウンロードされる？', 'faq.a3': 'デフォルト: ~/Downloads/FeiNiao/。設定で変更可能。',
+    'faq.q4': 'YouTube が解析できない？',
+    'faq.a4': '中国大陸からはプロキシが必要。App が Clash / Surge / V2Ray を自動検出して有効化を提案。',
+    'faq.q5': 'Bilibili が HTTP 412 を返す？',
+    'faq.a5': 'Bilibili は一部 IP を制限。App が Chrome/Edge/Firefox Cookie に自動フォールバック。',
+    'faq.q6': 'macOS「開発元未確認」エラー？',
+    'faq.a6': '現在 Apple 公証なし。右クリック → [開く] → 確認ダイアログで [開く] を再度クリック。',
+    'dl.title.1': '今すぐ始める', 'dl.title.2': 'スムーズな体験を',
+    'dl.subtitle': '無料 · 広告なし · テレメトリなし · オープンソース',
+    'dl.available': 'ダウンロード', 'dl.soon': '近日公開',
+    'dl.version': '{ver} · macOS 11+ · Apple Silicon ネイティブ · Intel 対応',
+    'dl.tag.local': 'ローカル処理', 'dl.tag.fast': '高速起動', 'dl.tag.foss': 'オープンソース',
+    'footer.disclaimer': '免責事項：本ツールは合法にアクセス可能なコンテンツのダウンロードのみを目的としています。地域の法律と各プラットフォームの利用規約に従ってください。',
+  },
+};
+
+const LANG_LABELS = { 'zh-CN': '简体中文', 'zh-TW': '繁體中文', 'en': 'English', 'ja': '日本語' };
+
+// Fallback version (used until GitHub API responds; updated on each release).
+let LATEST_VERSION = 'v1.3.0';
+let CURRENT_LANG = 'zh-CN';
+
+function detectLang() {
+  const saved = localStorage.getItem('lang');
+  if (saved && I18N[saved]) return saved;
+  const nav = (navigator.language || 'zh-CN').toLowerCase();
+  if (nav.startsWith('zh-tw') || nav.includes('hant') || nav.includes('hk')) return 'zh-TW';
+  if (nav.startsWith('zh')) return 'zh-CN';
+  if (nav.startsWith('ja')) return 'ja';
+  if (nav.startsWith('en')) return 'en';
+  return 'zh-CN';
+}
+
+function applyLang(lang) {
+  CURRENT_LANG = lang;
+  const dict = I18N[lang] || I18N['zh-CN'];
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key] !== undefined) {
+      el.textContent = dict[key].replace(/\{ver\}/g, LATEST_VERSION);
+    }
+  });
+  document.getElementById('lang-current').textContent = LANG_LABELS[lang] || lang;
+  localStorage.setItem('lang', lang);
+}
+
+// Format bytes as human-readable size (e.g. 6.3 MB).
+function fmtSize(bytes) {
+  if (!bytes || bytes <= 0) return '';
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1) return (bytes / 1024).toFixed(0) + ' KB';
+  return mb.toFixed(1) + ' MB';
+}
+
+// Pick the first asset whose filename matches `re` (case-insensitive).
+function pickAsset(assets, re) {
+  return assets.find((a) => re.test(a.name));
+}
+
+// Fetch latest release from GitHub API, rewire download buttons, and bump
+// version labels. Failures are silent — the static fallback links still work.
+async function loadLatestRelease() {
+  try {
+    const res = await fetch(
+      'https://api.github.com/repos/Yorushika-fan/feiniao-downloader/releases/latest',
+      { headers: { Accept: 'application/vnd.github+json' } },
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const tag = data.tag_name || LATEST_VERSION;
+    LATEST_VERSION = tag.startsWith('v') ? tag : 'v' + tag;
+    const assets = data.assets || [];
+
+    const mac = pickAsset(assets, /macos.*applesilicon.*\.dmg$|macos.*arm64.*\.dmg$|\.dmg$/i);
+    const win = pickAsset(assets, /windows.*\.exe$|setup.*\.exe$|\.exe$/i);
+    const lin = pickAsset(assets, /linux.*\.appimage$|\.appimage$/i);
+
+    const setBtn = (id, sizeId, ext, asset) => {
+      const a = document.getElementById(id);
+      const s = document.getElementById(sizeId);
+      if (!a) return;
+      if (asset && asset.browser_download_url) {
+        a.href = asset.browser_download_url;
+        a.setAttribute('download', '');
+        if (s) s.textContent = `${ext} · ${fmtSize(asset.size)}`;
+      } else {
+        // Fallback to the release page so user can pick manually.
+        a.href = data.html_url || 'https://github.com/Yorushika-fan/feiniao-downloader/releases/latest';
+        a.removeAttribute('download');
+        if (s) s.textContent = ext;
+      }
+    };
+
+    setBtn('dl-mac', 'dl-mac-size', '.dmg', mac);
+    setBtn('dl-win', 'dl-win-size', '.exe', win);
+    setBtn('dl-linux', 'dl-linux-size', '.AppImage', lin);
+
+    const footerVer = document.getElementById('footer-version');
+    if (footerVer) footerVer.textContent = LATEST_VERSION;
+
+    // Re-apply i18n so {ver} placeholders inside hero.badge / dl.version refresh.
+    applyLang(CURRENT_LANG);
+  } catch (_) {
+    // Silent failure: static fallback href on each button still points to /releases/latest.
+  }
+}
+
+// Wire up language switcher
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  applyLang(detectLang());
+  loadLatestRelease();
+  const btn = document.getElementById('lang-btn');
+  const menu = document.getElementById('lang-menu');
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.classList.toggle('hidden');
+  });
+  document.addEventListener('click', () => menu.classList.add('hidden'));
+  document.querySelectorAll('.lang-opt').forEach((opt) => {
+    opt.addEventListener('click', () => {
+      applyLang(opt.getAttribute('data-lang'));
+      menu.classList.add('hidden');
+      // Re-render lucide icons after text swap
+      lucide.createIcons();
+    });
+  });
+});
+</script>
+
+</body>
+</html>
