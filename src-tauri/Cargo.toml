@@ -1,6 +1,6 @@
 [package]
 name = "feiniao-downloader"
-version = "1.3.2"
+version = "1.3.3"
 description = "飞鸟下载器 — 基于 yt-dlp 的 macOS 下载工具"
 authors = ["yorushika"]
 edition = "2021"

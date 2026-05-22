@@ -12,6 +12,19 @@ fn err_to_string<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
+/// Strip macOS Gatekeeper quarantine xattr from a downloaded binary.
+/// No-op on non-macOS or when the attr is absent.
+#[cfg(target_os = "macos")]
+fn clear_quarantine(path: &std::path::Path) {
+    let _ = std::process::Command::new("xattr")
+        .arg("-d")
+        .arg("com.apple.quarantine")
+        .arg(path)
+        .output();
+}
+#[cfg(not(target_os = "macos"))]
+fn clear_quarantine(_path: &std::path::Path) {}
+
 /// Build an HTTP client tuned for large binary downloads from GitHub.
 /// Forces HTTP/1.1 because reqwest's HTTP/2 streaming + rustls has known
 /// flow-control issues that surface as "error decoding response body"
@@ -650,6 +663,7 @@ pub async fn install_ytdlp(app: AppHandle) -> Result<String, String> {
 
     // Atomic move into final location
     std::fs::rename(&tmp, &target).map_err(|e| format!("移动文件失败: {}", e))?;
+    clear_quarantine(&target);
 
     let _ = app.emit("install://progress", serde_json::json!({
         "percent": 100.0_f32,
@@ -695,6 +709,7 @@ pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
     }
 
     std::fs::rename(&tmp, &target).map_err(|e| format!("移动文件失败: {}", e))?;
+    clear_quarantine(&target);
 
     let _ = app.emit(
         "ffmpeg-install://progress",

@@ -317,7 +317,7 @@ export function SettingsPage() {
             <div className="text-[12px] font-medium">
               当前版本{" "}
               <span className="num text-[hsl(var(--muted-foreground))]">
-                v{updateState.info?.current_version ?? "1.3.2"}
+                v{updateState.info?.current_version ?? "1.3.3"}
               </span>
             </div>
             {updateState.state === "uptodate" && (

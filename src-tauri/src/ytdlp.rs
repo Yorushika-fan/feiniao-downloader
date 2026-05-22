@@ -348,6 +348,9 @@ pub async fn check_status(
     ffmpeg_hint: Option<&str>,
 ) -> YtDlpStatus {
     let ytdlp_path = find_binary("yt-dlp", ytdlp_hint);
+    // Treat the binary as "installed" only when it actually runs --version
+    // successfully. A broken file (corrupt, quarantined, non-executable) gets
+    // flagged as missing so the UI re-prompts the user to reinstall.
     let version = if let Some(ref p) = ytdlp_path {
         Command::new(p)
             .arg("--version")
@@ -365,14 +368,27 @@ pub async fn check_status(
     } else {
         None
     };
+    let ytdlp_works = version.is_some();
 
     let ffmpeg_path = find_binary("ffmpeg", ffmpeg_hint);
+    let ffmpeg_works = if let Some(ref p) = ffmpeg_path {
+        Command::new(p)
+            .arg("-version")
+            .env("PATH", enriched_path())
+            .output()
+            .await
+            .ok()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    } else {
+        false
+    };
 
     YtDlpStatus {
-        installed: ytdlp_path.is_some(),
+        installed: ytdlp_works,
         version,
         path: ytdlp_path.map(|p| p.to_string_lossy().to_string()),
-        ffmpeg_installed: ffmpeg_path.is_some(),
+        ffmpeg_installed: ffmpeg_works,
         ffmpeg_path: ffmpeg_path.map(|p| p.to_string_lossy().to_string()),
     }
 }
@@ -479,7 +495,15 @@ async fn run_probe(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let output = cmd.output().await.context("调用 yt-dlp 失败")?;
+    let output = cmd.output().await.map_err(|e| {
+        let bin_str = bin.to_string_lossy();
+        let kind = e.kind();
+        let detail = format!(
+            "无法启动 yt-dlp（{:?}）\n路径：{}\n原始错误：{}\n\n常见原因：\n  • 二进制不存在或被杀毒软件隔离\n  • 文件没有执行权限（macOS 可在「终端」运行：chmod +x {}）\n  • macOS 首次运行被 Gatekeeper 拦截（系统设置 → 隐私与安全性 → 仍要打开）\n  • 在「设置 → 一键安装」重新下载 yt-dlp 内核",
+            kind, bin_str, e, bin_str
+        );
+        anyhow!(detail)
+    })?;
     Ok((output.status, output.stdout, output.stderr))
 }
 
