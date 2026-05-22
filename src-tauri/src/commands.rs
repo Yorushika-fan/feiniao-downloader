@@ -587,3 +587,309 @@ pub async fn install_ytdlp(app: AppHandle) -> Result<String, String> {
 
     Ok(target.to_string_lossy().to_string())
 }
+
+/// Download a static ffmpeg binary to ~/.feiniao/bin/ffmpeg(.exe).
+/// Emits "ffmpeg-install://progress" events with `{percent: f32}` while downloading.
+#[tauri::command]
+pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
+    use futures_util::StreamExt;
+    use std::io::Write;
+
+    let url = crate::ytdlp::ffmpeg_download_url()
+        .ok_or_else(|| "当前平台暂不支持自动安装 ffmpeg，请手动安装。".to_string())?;
+    let target = crate::ytdlp::ffmpeg_install_target_path()
+        .ok_or_else(|| "无法获取用户目录".to_string())?;
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建安装目录失败: {}", e))?;
+    }
+
+    let client = reqwest::Client::builder()
+        .user_agent("FeiNiao-Downloader/1.0")
+        .build()
+        .map_err(|e| format!("HTTP 客户端初始化失败: {}", e))?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("下载 ffmpeg 失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!(
+            "下载 ffmpeg 失败（HTTP {}）。请检查网络或代理。",
+            resp.status()
+        ));
+    }
+    let total = resp.content_length().unwrap_or(0);
+
+    let tmp = target.with_extension("tmp");
+    let mut file = std::fs::File::create(&tmp).map_err(|e| format!("写入文件失败: {}", e))?;
+    let mut downloaded: u64 = 0;
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let bytes = chunk.map_err(|e| format!("下载中断: {}", e))?;
+        file.write_all(&bytes).map_err(|e| format!("写入失败: {}", e))?;
+        downloaded += bytes.len() as u64;
+        if total > 0 {
+            let percent = (downloaded as f32 / total as f32) * 100.0;
+            let _ = app.emit(
+                "ffmpeg-install://progress",
+                serde_json::json!({
+                    "percent": percent,
+                    "downloaded": downloaded,
+                    "total": total,
+                }),
+            );
+        }
+    }
+    file.flush().map_err(|e| format!("写入完成失败: {}", e))?;
+    drop(file);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&tmp)
+            .map_err(|e| format!("无法获取文件权限: {}", e))?
+            .permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&tmp, perms)
+            .map_err(|e| format!("设置可执行权限失败: {}", e))?;
+    }
+
+    std::fs::rename(&tmp, &target).map_err(|e| format!("移动文件失败: {}", e))?;
+
+    let _ = app.emit(
+        "ffmpeg-install://progress",
+        serde_json::json!({
+            "percent": 100.0_f32,
+            "downloaded": downloaded,
+            "total": total,
+            "done": true,
+        }),
+    );
+
+    Ok(target.to_string_lossy().to_string())
+}
+
+/// Compare two semver-ish version strings like "1.2.1" vs "1.3.0".
+/// Returns Ordering::Less if `a < b`. Tags like "v1.2.1" are tolerated.
+fn cmp_version(a: &str, b: &str) -> std::cmp::Ordering {
+    let strip = |s: &str| -> Vec<u32> {
+        s.trim_start_matches('v')
+            .trim_start_matches('V')
+            .split('.')
+            .map(|p| p.chars().take_while(|c| c.is_ascii_digit()).collect::<String>())
+            .map(|p| p.parse::<u32>().unwrap_or(0))
+            .collect()
+    };
+    let av = strip(a);
+    let bv = strip(b);
+    let n = av.len().max(bv.len());
+    for i in 0..n {
+        let av_i = av.get(i).copied().unwrap_or(0);
+        let bv_i = bv.get(i).copied().unwrap_or(0);
+        match av_i.cmp(&bv_i) {
+            std::cmp::Ordering::Equal => continue,
+            other => return other,
+        }
+    }
+    std::cmp::Ordering::Equal
+}
+
+/// Choose the platform-appropriate release asset by name.
+fn platform_asset_keywords() -> Vec<&'static str> {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    return vec!["AppleSilicon", "aarch64", "arm64", ".dmg"];
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    return vec!["Intel", "x64", "x86_64", ".dmg"];
+    #[cfg(target_os = "windows")]
+    return vec![".exe", "Windows", "x64"];
+    #[cfg(target_os = "linux")]
+    return vec![".AppImage", "Linux", "x86_64"];
+}
+
+#[allow(dead_code)]
+fn platform_asset_ext() -> &'static str {
+    #[cfg(target_os = "macos")]
+    return ".dmg";
+    #[cfg(target_os = "windows")]
+    return ".exe";
+    #[cfg(target_os = "linux")]
+    return ".AppImage";
+}
+
+/// Check GitHub for a newer release of 飞鸟下载器.
+#[tauri::command]
+pub async fn check_update() -> Result<UpdateInfo, String> {
+    let current = env!("CARGO_PKG_VERSION").to_string();
+    let api = "https://api.github.com/repos/Yorushika-fan/feiniao-downloader/releases/latest";
+    let client = reqwest::Client::builder()
+        .user_agent("FeiNiao-Downloader/1.0")
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("HTTP 客户端初始化失败: {}", e))?;
+    let resp = client.get(api).send().await.map_err(|e| format!("检查更新失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("GitHub 返回错误：HTTP {}", resp.status()));
+    }
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析 GitHub 响应失败: {}", e))?;
+
+    let tag = json.get("tag_name").and_then(|x| x.as_str()).map(String::from);
+    let release_name = json.get("name").and_then(|x| x.as_str()).map(String::from);
+    let release_notes = json.get("body").and_then(|x| x.as_str()).map(String::from);
+    let release_url = json.get("html_url").and_then(|x| x.as_str()).map(String::from);
+    let published_at = json
+        .get("published_at")
+        .and_then(|x| x.as_str())
+        .map(String::from);
+
+    let mut asset_url: Option<String> = None;
+    let mut asset_name: Option<String> = None;
+    if let Some(assets) = json.get("assets").and_then(|x| x.as_array()) {
+        let keywords = platform_asset_keywords();
+        let primary_ext = keywords
+            .iter()
+            .find(|k| k.starts_with('.'))
+            .copied()
+            .unwrap_or("");
+        for a in assets {
+            let name = a.get("name").and_then(|x| x.as_str()).unwrap_or("");
+            let url = a
+                .get("browser_download_url")
+                .and_then(|x| x.as_str())
+                .unwrap_or("");
+            if name.is_empty() || url.is_empty() {
+                continue;
+            }
+            if !primary_ext.is_empty() && !name.to_ascii_lowercase().ends_with(primary_ext) {
+                continue;
+            }
+            let lc = name.to_ascii_lowercase();
+            let score = keywords
+                .iter()
+                .filter(|k| lc.contains(&k.to_ascii_lowercase()))
+                .count();
+            if score >= 1 || asset_url.is_none() {
+                asset_url = Some(url.to_string());
+                asset_name = Some(name.to_string());
+                if score >= 2 {
+                    break;
+                }
+            }
+        }
+    }
+
+    let has_update = match tag.as_deref() {
+        Some(t) => cmp_version(&current, t) == std::cmp::Ordering::Less,
+        None => false,
+    };
+
+    Ok(UpdateInfo {
+        current_version: current,
+        latest_version: tag,
+        has_update,
+        release_name,
+        release_notes,
+        release_url,
+        asset_url,
+        asset_name,
+        published_at,
+    })
+}
+
+/// Download the new release asset and open it with the OS handler so the user
+/// can install it (mount DMG, run EXE, launch AppImage). Emits
+/// "update-install://progress" events.
+#[tauri::command]
+pub async fn install_update(url: String, app: AppHandle) -> Result<String, String> {
+    use futures_util::StreamExt;
+    use std::io::Write;
+    use tauri_plugin_opener::OpenerExt;
+
+    let parsed = url::Url::parse(&url).map_err(|e| format!("无效链接: {}", e))?;
+    if parsed.scheme() != "https" {
+        return Err("仅允许 https 链接".into());
+    }
+    let host = parsed.host_str().unwrap_or("");
+    if !(host == "github.com" || host.ends_with(".github.com") || host == "objects.githubusercontent.com") {
+        return Err("只允许下载 github.com 上的发行版".into());
+    }
+
+    let filename = parsed
+        .path_segments()
+        .and_then(|s| s.last())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("FeiNiao-update")
+        .to_string();
+    let temp_dir = std::env::temp_dir().join("feiniao-update");
+    std::fs::create_dir_all(&temp_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
+    let target = temp_dir.join(&filename);
+
+    let client = reqwest::Client::builder()
+        .user_agent("FeiNiao-Downloader/1.0")
+        .build()
+        .map_err(|e| format!("HTTP 客户端初始化失败: {}", e))?;
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("下载更新失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("下载更新失败（HTTP {}）", resp.status()));
+    }
+    let total = resp.content_length().unwrap_or(0);
+
+    let tmp = target.with_extension("part");
+    let mut file = std::fs::File::create(&tmp).map_err(|e| format!("写入文件失败: {}", e))?;
+    let mut downloaded: u64 = 0;
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let bytes = chunk.map_err(|e| format!("下载中断: {}", e))?;
+        file.write_all(&bytes).map_err(|e| format!("写入失败: {}", e))?;
+        downloaded += bytes.len() as u64;
+        if total > 0 {
+            let percent = (downloaded as f32 / total as f32) * 100.0;
+            let _ = app.emit(
+                "update-install://progress",
+                serde_json::json!({
+                    "percent": percent,
+                    "downloaded": downloaded,
+                    "total": total,
+                }),
+            );
+        }
+    }
+    file.flush().map_err(|e| format!("写入完成失败: {}", e))?;
+    drop(file);
+
+    #[cfg(unix)]
+    if filename.to_ascii_lowercase().ends_with(".appimage") {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&tmp)
+            .map_err(|e| format!("无法获取文件权限: {}", e))?
+            .permissions();
+        perms.set_mode(0o755);
+        let _ = std::fs::set_permissions(&tmp, perms);
+    }
+
+    std::fs::rename(&tmp, &target).map_err(|e| format!("移动文件失败: {}", e))?;
+
+    let _ = app.emit(
+        "update-install://progress",
+        serde_json::json!({
+            "percent": 100.0_f32,
+            "downloaded": downloaded,
+            "total": total,
+            "done": true,
+        }),
+    );
+
+    let target_str = target.to_string_lossy().to_string();
+    // Hand off to OS — mounts DMG / runs EXE / launches AppImage.
+    app.opener()
+        .open_path(&target_str, None::<&str>)
+        .map_err(|e| format!("打开安装包失败: {}", e))?;
+
+    Ok(target_str)
+}

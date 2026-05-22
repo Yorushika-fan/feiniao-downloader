@@ -37,7 +37,10 @@ import {
   type ProxyCandidate,
   type VideoInfo,
   type InstallProgress,
+  type UpdateInfo,
   onInstallProgress,
+  onFfmpegInstallProgress,
+  onUpdateInstallProgress,
 } from "@/lib/tauri";
 import { useAppStore } from "@/store/app";
 import { BirdMark } from "@/components/titlebar";
@@ -164,6 +167,12 @@ export function HomePage() {
   const [submitting, setSubmitting] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installPct, setInstallPct] = useState(0);
+  const [ffInstalling, setFfInstalling] = useState(false);
+  const [ffInstallPct, setFfInstallPct] = useState(0);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  const [updateInstalling, setUpdateInstalling] = useState(false);
+  const [updateInstallPct, setUpdateInstallPct] = useState(0);
   const [proxyHint, setProxyHint] = useState<ProxyCandidate | null>(null);
   const [proxyDismissed, setProxyDismissed] = useState(false);
   const [probed, setProbed] = useState<ProbedItem[]>([]);
@@ -212,6 +221,42 @@ export function HomePage() {
       },
     );
     return () => unlisten?.();
+  }, []);
+
+  // ffmpeg install progress
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    onFfmpegInstallProgress((p: InstallProgress) =>
+      setFfInstallPct(p.percent),
+    ).then((u) => {
+      unlisten = u;
+    });
+    return () => unlisten?.();
+  }, []);
+
+  // update install progress
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    onUpdateInstallProgress((p: InstallProgress) =>
+      setUpdateInstallPct(p.percent),
+    ).then((u) => {
+      unlisten = u;
+    });
+    return () => unlisten?.();
+  }, []);
+
+  // auto-check updates on mount (silent — only show banner if newer)
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .checkUpdate()
+      .then((info) => {
+        if (!cancelled && info.has_update) setUpdateInfo(info);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Clipboard auto-detection — on mount + on window focus
@@ -321,6 +366,46 @@ export function HomePage() {
       toast.error("安装失败", { description: String(e) });
     } finally {
       setInstalling(false);
+    }
+  };
+
+  const installFfmpeg = async () => {
+    setFfInstalling(true);
+    setFfInstallPct(0);
+    try {
+      await api.installFfmpeg();
+      toast.success("ffmpeg 已就绪");
+      await refreshStatus();
+    } catch (e) {
+      toast.error("安装失败", { description: String(e) });
+    } finally {
+      setFfInstalling(false);
+    }
+  };
+
+  const installUpdateNow = async () => {
+    if (!updateInfo?.asset_url) {
+      // No asset for this platform — open the release page so user can pick.
+      if (updateInfo?.release_url) {
+        try {
+          await api.openExternal(updateInfo.release_url);
+        } catch (e) {
+          toast.error("打开浏览器失败", { description: String(e) });
+        }
+      }
+      return;
+    }
+    setUpdateInstalling(true);
+    setUpdateInstallPct(0);
+    try {
+      await api.installUpdate(updateInfo.asset_url);
+      toast.success("已下载完成，正在打开安装包…", {
+        description: "请按提示完成安装后重启应用",
+      });
+    } catch (e) {
+      toast.error("更新失败", { description: String(e) });
+    } finally {
+      setUpdateInstalling(false);
     }
   };
 
@@ -651,14 +736,89 @@ export function HomePage() {
         </div>
       )}
 
-      {/* ffmpeg missing warning */}
+      {/* ffmpeg missing — auto-install card */}
       {status?.installed && !status.ffmpeg_installed && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[hsl(var(--warning)/0.08)] border border-[hsl(var(--warning)/0.25)] text-[11px] text-[hsl(var(--warning))]">
-          <AlertTriangle className="w-3.5 h-3.5" />
-          <span className="flex-1">
-            未检测到 ffmpeg，合并视频与音频需要它。运行：
-            <code className="font-mono">brew install ffmpeg</code>
-          </span>
+        <div className="rounded-2xl border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.06)] p-3.5 flex items-start gap-3 lume">
+          <div className="w-9 h-9 rounded-xl bg-[hsl(var(--warning)/0.15)] flex items-center justify-center shrink-0">
+            <AlertTriangle
+              className="w-4 h-4 text-[hsl(var(--warning))]"
+              strokeWidth={2.2}
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold tracking-tight">
+              未检测到 ffmpeg
+            </div>
+            <div className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+              合并视频与音频需要 ffmpeg。点击右侧按钮自动下载（约 25MB），无需手动安装。
+            </div>
+            {ffInstalling && (
+              <div className="mt-2 space-y-1">
+                <Progress value={ffInstallPct} />
+                <div className="text-[10.5px] text-[hsl(var(--muted-foreground))] num">
+                  {ffInstallPct.toFixed(0)}%
+                </div>
+              </div>
+            )}
+          </div>
+          <Button
+            variant="gradient"
+            size="sm"
+            onClick={installFfmpeg}
+            disabled={ffInstalling}
+          >
+            {ffInstalling ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Zap className="w-3.5 h-3.5" strokeWidth={2.4} />
+            )}
+            {ffInstalling ? "下载中…" : "一键安装"}
+          </Button>
+        </div>
+      )}
+
+      {/* In-app update banner */}
+      {updateInfo?.has_update && !updateDismissed && (
+        <div className="rounded-2xl border border-[hsl(var(--accent-amber)/0.35)] bg-gradient-amber-soft p-3.5 flex items-start gap-3 lume">
+          <div className="w-9 h-9 rounded-xl bg-gradient-amber flex items-center justify-center shrink-0 shadow-[0_2px_8px_rgba(202,138,4,0.3)]">
+            <Sparkles className="w-4 h-4 text-white" strokeWidth={2.4} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold tracking-tight">
+              发现新版本 {updateInfo.latest_version}
+            </div>
+            <div className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+              当前 {updateInfo.current_version} · 点击「立即更新」自动下载安装包
+            </div>
+            {updateInstalling && (
+              <div className="mt-2 space-y-1">
+                <Progress value={updateInstallPct} />
+                <div className="text-[10.5px] text-[hsl(var(--muted-foreground))] num">
+                  {updateInstallPct.toFixed(0)}%
+                </div>
+              </div>
+            )}
+          </div>
+          <Button
+            variant="gradient"
+            size="sm"
+            onClick={installUpdateNow}
+            disabled={updateInstalling}
+          >
+            {updateInstalling ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" strokeWidth={2.4} />
+            )}
+            {updateInstalling ? "下载中…" : "立即更新"}
+          </Button>
+          <button
+            onClick={() => setUpdateDismissed(true)}
+            className="h-7 w-7 rounded-lg flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition-colors cursor-pointer"
+            title="忽略"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 

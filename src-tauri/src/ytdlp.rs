@@ -78,6 +78,42 @@ pub fn ytdlp_download_url() -> String {
     )
 }
 
+/// Local filename for the bundled ffmpeg binary.
+pub fn ffmpeg_binary_filename() -> &'static str {
+    #[cfg(target_os = "windows")]
+    return "ffmpeg.exe";
+    #[cfg(not(target_os = "windows"))]
+    return "ffmpeg";
+}
+
+/// Direct download URL for a static, single-file ffmpeg binary per platform.
+/// Uses eugeneware/ffmpeg-static which publishes bare binaries — no archive
+/// to extract on the user's machine.
+pub fn ffmpeg_download_url() -> Option<&'static str> {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/darwin-arm64");
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/darwin-x64");
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/linux-x64");
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/linux-arm64");
+    #[cfg(target_os = "windows")]
+    return Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/win32-x64.exe");
+    #[cfg(not(any(
+        all(target_os = "macos", any(target_arch = "aarch64", target_arch = "x86_64")),
+        all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")),
+        target_os = "windows"
+    )))]
+    return None;
+}
+
+/// Target install path for the ffmpeg auto-installer.
+pub fn ffmpeg_install_target_path() -> Option<PathBuf> {
+    let home = dirs::home_dir()?;
+    Some(home.join(".feiniao").join("bin").join(ffmpeg_binary_filename()))
+}
+
 const DESKTOP_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
 
 /// Detect the host name from a URL (lowercased, no leading "www.").
@@ -191,7 +227,7 @@ pub fn humanize_error(stderr: &str, url: &str) -> String {
         return format!("yt-dlp 暂不支持此链接：\n{}", url);
     }
     if stderr_lower.contains("ffmpeg") && (stderr_lower.contains("not found") || stderr_lower.contains("install")) {
-        return "缺少 ffmpeg，无法合并视频与音频。请运行：brew install ffmpeg".into();
+        return "缺少 ffmpeg，无法合并视频与音频。请在「设置 → 依赖」点击「一键安装 ffmpeg」。".into();
     }
     if stderr_lower.contains("requested format is not available")
         || stderr_lower.contains("no formats found")
@@ -258,11 +294,18 @@ pub fn find_binary(name: &str, hint: Option<&str>) -> Option<PathBuf> {
             return Some(p);
         }
     }
-    // 1) Look for user-installed yt-dlp (downloaded by our "一键安装").
+    // 1) Look for user-installed yt-dlp / ffmpeg (downloaded by our "一键安装").
     if name == "yt-dlp" {
         if let Some(user_installed) = user_installed_ytdlp() {
             if user_installed.is_file() {
                 return Some(user_installed);
+            }
+        }
+    }
+    if name == "ffmpeg" {
+        if let Some(p) = ffmpeg_install_target_path() {
+            if p.is_file() {
+                return Some(p);
             }
         }
     }

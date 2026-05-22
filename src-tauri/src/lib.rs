@@ -25,6 +25,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::check_ytdlp,
             commands::install_ytdlp,
+            commands::install_ffmpeg,
+            commands::check_update,
+            commands::install_update,
             commands::probe_url,
             commands::start_download,
             commands::cancel_download,

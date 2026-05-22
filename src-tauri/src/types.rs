@@ -1,6 +1,19 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateInfo {
+    pub current_version: String,
+    pub latest_version: Option<String>,
+    pub has_update: bool,
+    pub release_name: Option<String>,
+    pub release_notes: Option<String>,
+    pub release_url: Option<String>,
+    pub asset_url: Option<String>,
+    pub asset_name: Option<String>,
+    pub published_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YtDlpStatus {
     pub installed: bool,
     pub version: Option<String>,

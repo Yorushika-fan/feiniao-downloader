@@ -10,6 +10,8 @@ import {
   Loader2,
   ShieldCheck,
   RefreshCw,
+  Sparkles,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAppStore } from "@/store/app";
-import { api, type AppSettings } from "@/lib/tauri";
+import { api, type AppSettings, type UpdateInfo } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
 export function SettingsPage() {
@@ -28,6 +30,11 @@ export function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [cookieTest, setCookieTest] = useState<{
     state: "idle" | "loading" | "ok" | "err";
+    msg?: string;
+  }>({ state: "idle" });
+  const [updateState, setUpdateState] = useState<{
+    state: "idle" | "checking" | "found" | "uptodate" | "err" | "installing";
+    info?: UpdateInfo;
     msg?: string;
   }>({ state: "idle" });
 
@@ -67,6 +74,52 @@ export function SettingsPage() {
       toast.error("保存失败", { description: String(e) });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const checkUpdate = async () => {
+    setUpdateState({ state: "checking" });
+    try {
+      const info = await api.checkUpdate();
+      if (info.has_update) {
+        setUpdateState({ state: "found", info });
+      } else {
+        setUpdateState({
+          state: "uptodate",
+          info,
+          msg: `已是最新版本（${info.current_version}）`,
+        });
+      }
+    } catch (e) {
+      setUpdateState({
+        state: "err",
+        msg: typeof e === "string" ? e : String(e),
+      });
+    }
+  };
+
+  const runUpdate = async () => {
+    const info = updateState.info;
+    if (!info) return;
+    if (!info.asset_url) {
+      if (info.release_url) {
+        try {
+          await api.openExternal(info.release_url);
+        } catch (e) {
+          toast.error("打开浏览器失败", { description: String(e) });
+        }
+      }
+      return;
+    }
+    setUpdateState({ state: "installing", info });
+    try {
+      await api.installUpdate(info.asset_url);
+      toast.success("已下载完成，正在打开安装包…", {
+        description: "请按提示完成安装后重启应用",
+      });
+    } catch (e) {
+      toast.error("更新失败", { description: String(e) });
+      setUpdateState({ state: "found", info });
     }
   };
 
@@ -256,6 +309,74 @@ export function SettingsPage() {
             </div>
           )}
         </Field>
+      </Section>
+
+      <Section icon={Sparkles} title="版本与更新">
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-[hsl(var(--secondary)/0.5)] px-3 py-2.5">
+          <div className="min-w-0">
+            <div className="text-[12px] font-medium">
+              当前版本{" "}
+              <span className="num text-[hsl(var(--muted-foreground))]">
+                v{updateState.info?.current_version ?? "1.3.0"}
+              </span>
+            </div>
+            {updateState.state === "uptodate" && (
+              <div className="flex items-center gap-1.5 text-[11px] text-[hsl(var(--success))] mt-1">
+                <CheckCircle2 className="w-3 h-3" strokeWidth={2.5} />
+                <span>{updateState.msg}</span>
+              </div>
+            )}
+            {updateState.state === "found" && updateState.info && (
+              <div className="flex items-center gap-1.5 text-[11px] text-[hsl(var(--accent-amber))] font-medium mt-1">
+                <Sparkles className="w-3 h-3" strokeWidth={2.4} />
+                <span>
+                  发现新版本 {updateState.info.latest_version}
+                </span>
+              </div>
+            )}
+            {updateState.state === "err" && (
+              <div className="flex items-start gap-1.5 text-[11px] text-[hsl(var(--danger))] mt-1">
+                <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
+                <span>{updateState.msg}</span>
+              </div>
+            )}
+            {updateState.state === "idle" && (
+              <div className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                每次打开应用会自动检查更新
+              </div>
+            )}
+          </div>
+          {updateState.state === "found" ? (
+            <Button
+              variant="gradient"
+              size="sm"
+              onClick={runUpdate}
+              disabled={updateState.state !== "found"}
+            >
+              <Download className="w-3.5 h-3.5" strokeWidth={2.4} />
+              立即更新
+            </Button>
+          ) : updateState.state === "installing" ? (
+            <Button variant="gradient" size="sm" disabled>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              下载中…
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={checkUpdate}
+              disabled={updateState.state === "checking"}
+            >
+              {updateState.state === "checking" ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" strokeWidth={2.2} />
+              )}
+              {updateState.state === "checking" ? "检查中…" : "检查更新"}
+            </Button>
+          )}
+        </div>
       </Section>
 
       <Section icon={RefreshCw} title="主题">

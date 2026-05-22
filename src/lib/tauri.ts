@@ -152,6 +152,18 @@ export interface InstallProgress {
   done?: boolean;
 }
 
+export interface UpdateInfo {
+  current_version: string;
+  latest_version: string | null;
+  has_update: boolean;
+  release_name: string | null;
+  release_notes: string | null;
+  release_url: string | null;
+  asset_url: string | null;
+  asset_name: string | null;
+  published_at: string | null;
+}
+
 export const api = {
   checkYtDlp: () => invoke<YtDlpStatus>("check_ytdlp"),
   probeUrl: (url: string) => invoke<VideoInfo>("probe_url", { url }),
@@ -175,12 +187,31 @@ export const api = {
   openExternal: (url: string) => invoke<void>("open_external", { url }),
   defaultDownloadDir: () => invoke<string>("default_download_dir"),
   installYtDlp: () => invoke<string>("install_ytdlp"),
+  installFfmpeg: () => invoke<string>("install_ffmpeg"),
+  checkUpdate: () => invoke<UpdateInfo>("check_update"),
+  installUpdate: (url: string) => invoke<string>("install_update", { url }),
 };
 
 export function onInstallProgress(
   cb: (p: InstallProgress) => void,
 ): Promise<UnlistenFn> {
   return listen<InstallProgress>("install://progress", (e) => cb(e.payload));
+}
+
+export function onFfmpegInstallProgress(
+  cb: (p: InstallProgress) => void,
+): Promise<UnlistenFn> {
+  return listen<InstallProgress>("ffmpeg-install://progress", (e) =>
+    cb(e.payload),
+  );
+}
+
+export function onUpdateInstallProgress(
+  cb: (p: InstallProgress) => void,
+): Promise<UnlistenFn> {
+  return listen<InstallProgress>("update-install://progress", (e) =>
+    cb(e.payload),
+  );
 }
 
 export function onDownloadProgress(
