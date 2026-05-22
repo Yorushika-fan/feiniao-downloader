@@ -12,6 +12,20 @@ fn err_to_string<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
+/// Build an HTTP client tuned for large binary downloads from GitHub.
+/// Forces HTTP/1.1 because reqwest's HTTP/2 streaming + rustls has known
+/// flow-control issues that surface as "error decoding response body"
+/// partway through ~40 MB+ downloads.
+fn download_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .user_agent("FeiNiao-Downloader/1.0")
+        .http1_only()
+        .tcp_keepalive(std::time::Duration::from_secs(60))
+        .connect_timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("HTTP 客户端初始化失败: {}", e))
+}
+
 /// Reject system-sensitive download targets to prevent users (or a compromised
 /// WebView) from writing to OS directories. Allow ~/Downloads, ~/Movies,
 /// ~/Music, ~/Documents, ~/Desktop and anywhere under the user's home dir.
@@ -512,13 +526,98 @@ pub fn default_download_dir() -> Result<String, String> {
     Ok(p.to_string_lossy().to_string())
 }
 
+/// Streams a binary download into `tmp_path` with HTTP/1.1 + retry on
+/// transient errors. Emits progress on `progress_event`. Returns
+/// (downloaded_bytes, total_bytes_or_zero).
+async fn stream_download_with_retry(
+    url: &str,
+    tmp_path: &std::path::Path,
+    app: &AppHandle,
+    progress_event: &str,
+    label: &str,
+) -> Result<(u64, u64), String> {
+    use futures_util::StreamExt;
+    use std::io::Write;
+
+    const MAX_RETRIES: u32 = 3;
+    let client = download_client()?;
+
+    let mut last_err: Option<String> = None;
+    for attempt in 0..MAX_RETRIES {
+        // Recreate the file on every attempt so partial bytes don't accumulate.
+        let resp = match client.get(url).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                last_err = Some(format!("下载 {} 失败: {}", label, e));
+                continue;
+            }
+        };
+        if !resp.status().is_success() {
+            return Err(format!(
+                "下载 {} 失败（HTTP {}）。请检查网络或代理。",
+                label,
+                resp.status()
+            ));
+        }
+        let total = resp.content_length().unwrap_or(0);
+
+        let mut file = std::fs::File::create(tmp_path)
+            .map_err(|e| format!("写入文件失败: {}", e))?;
+        let mut downloaded: u64 = 0;
+        let mut stream = resp.bytes_stream();
+        let mut stream_err: Option<String> = None;
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                Ok(bytes) => {
+                    if let Err(e) = file.write_all(&bytes) {
+                        return Err(format!("写入失败: {}", e));
+                    }
+                    downloaded += bytes.len() as u64;
+                    if total > 0 {
+                        let percent = (downloaded as f32 / total as f32) * 100.0;
+                        let _ = app.emit(
+                            progress_event,
+                            serde_json::json!({
+                                "percent": percent,
+                                "downloaded": downloaded,
+                                "total": total,
+                            }),
+                        );
+                    }
+                }
+                Err(e) => {
+                    stream_err = Some(format!("下载中断: {}", e));
+                    break;
+                }
+            }
+        }
+        drop(file);
+        if let Some(e) = stream_err {
+            last_err = Some(e);
+            // Backoff before retry.
+            let wait = std::time::Duration::from_millis(800 * (attempt as u64 + 1));
+            log::warn!("download retry {}/{} after {:?}", attempt + 1, MAX_RETRIES, wait);
+            tokio::time::sleep(wait).await;
+            continue;
+        }
+        // Sanity: if Content-Length was provided, ensure we got the full thing.
+        if total > 0 && downloaded < total {
+            last_err = Some(format!(
+                "下载不完整（收到 {} / 总计 {}），将重试",
+                downloaded, total
+            ));
+            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+            continue;
+        }
+        return Ok((downloaded, total));
+    }
+    Err(last_err.unwrap_or_else(|| "下载失败（已重试多次）".to_string()))
+}
+
 /// Download the official yt-dlp nightly binary to ~/.feiniao/bin/yt-dlp_macos.
 /// Emits "install://progress" events with `{percent: f32}` while downloading.
 #[tauri::command]
 pub async fn install_ytdlp(app: AppHandle) -> Result<String, String> {
-    use futures_util::StreamExt;
-    use std::io::Write;
-
     let target = crate::ytdlp::install_target_path()
         .ok_or_else(|| "无法获取用户目录".to_string())?;
     if let Some(parent) = target.parent() {
@@ -527,41 +626,15 @@ pub async fn install_ytdlp(app: AppHandle) -> Result<String, String> {
 
     // OS-specific nightly binary URL.
     let url = crate::ytdlp::ytdlp_download_url();
-    let url = url.as_str();
-    let client = reqwest::Client::builder()
-        .user_agent("FeiNiao-Downloader/1.0")
-        .build()
-        .map_err(|e| format!("HTTP 客户端初始化失败: {}", e))?;
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("下载 yt-dlp 失败: {}", e))?;
-    if !resp.status().is_success() {
-        return Err(format!("下载 yt-dlp 失败（HTTP {}）。请检查网络或代理。", resp.status()));
-    }
-    let total = resp.content_length().unwrap_or(0);
-
-    // Write to .tmp then rename for atomicity.
     let tmp = target.with_extension("tmp");
-    let mut file = std::fs::File::create(&tmp).map_err(|e| format!("写入文件失败: {}", e))?;
-    let mut downloaded: u64 = 0;
-    let mut stream = resp.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(|e| format!("下载中断: {}", e))?;
-        file.write_all(&bytes).map_err(|e| format!("写入失败: {}", e))?;
-        downloaded += bytes.len() as u64;
-        if total > 0 {
-            let percent = (downloaded as f32 / total as f32) * 100.0;
-            let _ = app.emit("install://progress", serde_json::json!({
-                "percent": percent,
-                "downloaded": downloaded,
-                "total": total,
-            }));
-        }
-    }
-    file.flush().map_err(|e| format!("写入完成失败: {}", e))?;
-    drop(file);
+    let (downloaded, total) = stream_download_with_retry(
+        url.as_str(),
+        &tmp,
+        &app,
+        "install://progress",
+        "yt-dlp",
+    )
+    .await?;
 
     // chmod +x on Unix; Windows .exe is executable as-is.
     #[cfg(unix)]
@@ -592,9 +665,6 @@ pub async fn install_ytdlp(app: AppHandle) -> Result<String, String> {
 /// Emits "ffmpeg-install://progress" events with `{percent: f32}` while downloading.
 #[tauri::command]
 pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
-    use futures_util::StreamExt;
-    use std::io::Write;
-
     let url = crate::ytdlp::ffmpeg_download_url()
         .ok_or_else(|| "当前平台暂不支持自动安装 ffmpeg，请手动安装。".to_string())?;
     let target = crate::ytdlp::ffmpeg_install_target_path()
@@ -603,45 +673,15 @@ pub async fn install_ffmpeg(app: AppHandle) -> Result<String, String> {
         std::fs::create_dir_all(parent).map_err(|e| format!("创建安装目录失败: {}", e))?;
     }
 
-    let client = reqwest::Client::builder()
-        .user_agent("FeiNiao-Downloader/1.0")
-        .build()
-        .map_err(|e| format!("HTTP 客户端初始化失败: {}", e))?;
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("下载 ffmpeg 失败: {}", e))?;
-    if !resp.status().is_success() {
-        return Err(format!(
-            "下载 ffmpeg 失败（HTTP {}）。请检查网络或代理。",
-            resp.status()
-        ));
-    }
-    let total = resp.content_length().unwrap_or(0);
-
     let tmp = target.with_extension("tmp");
-    let mut file = std::fs::File::create(&tmp).map_err(|e| format!("写入文件失败: {}", e))?;
-    let mut downloaded: u64 = 0;
-    let mut stream = resp.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(|e| format!("下载中断: {}", e))?;
-        file.write_all(&bytes).map_err(|e| format!("写入失败: {}", e))?;
-        downloaded += bytes.len() as u64;
-        if total > 0 {
-            let percent = (downloaded as f32 / total as f32) * 100.0;
-            let _ = app.emit(
-                "ffmpeg-install://progress",
-                serde_json::json!({
-                    "percent": percent,
-                    "downloaded": downloaded,
-                    "total": total,
-                }),
-            );
-        }
-    }
-    file.flush().map_err(|e| format!("写入完成失败: {}", e))?;
-    drop(file);
+    let (downloaded, total) = stream_download_with_retry(
+        url,
+        &tmp,
+        &app,
+        "ffmpeg-install://progress",
+        "ffmpeg",
+    )
+    .await?;
 
     #[cfg(unix)]
     {
@@ -803,8 +843,6 @@ pub async fn check_update() -> Result<UpdateInfo, String> {
 /// "update-install://progress" events.
 #[tauri::command]
 pub async fn install_update(url: String, app: AppHandle) -> Result<String, String> {
-    use futures_util::StreamExt;
-    use std::io::Write;
     use tauri_plugin_opener::OpenerExt;
 
     let parsed = url::Url::parse(&url).map_err(|e| format!("无效链接: {}", e))?;
@@ -816,52 +854,33 @@ pub async fn install_update(url: String, app: AppHandle) -> Result<String, Strin
         return Err("只允许下载 github.com 上的发行版".into());
     }
 
-    let filename = parsed
+    let raw_name = parsed
         .path_segments()
         .and_then(|s| s.last())
         .filter(|s| !s.is_empty())
         .unwrap_or("FeiNiao-update")
         .to_string();
+    // Some tauri-action releases produce stripped names like "_1.3.1_aarch64.dmg"
+    // (the CJK product name was removed). Add a stable prefix so OS prompts and
+    // file managers still show a meaningful filename.
+    let filename = if raw_name.starts_with('_') {
+        format!("FeiNiao-Downloader{}", raw_name)
+    } else {
+        raw_name
+    };
     let temp_dir = std::env::temp_dir().join("feiniao-update");
     std::fs::create_dir_all(&temp_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
     let target = temp_dir.join(&filename);
-
-    let client = reqwest::Client::builder()
-        .user_agent("FeiNiao-Downloader/1.0")
-        .build()
-        .map_err(|e| format!("HTTP 客户端初始化失败: {}", e))?;
-    let resp = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("下载更新失败: {}", e))?;
-    if !resp.status().is_success() {
-        return Err(format!("下载更新失败（HTTP {}）", resp.status()));
-    }
-    let total = resp.content_length().unwrap_or(0);
-
     let tmp = target.with_extension("part");
-    let mut file = std::fs::File::create(&tmp).map_err(|e| format!("写入文件失败: {}", e))?;
-    let mut downloaded: u64 = 0;
-    let mut stream = resp.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(|e| format!("下载中断: {}", e))?;
-        file.write_all(&bytes).map_err(|e| format!("写入失败: {}", e))?;
-        downloaded += bytes.len() as u64;
-        if total > 0 {
-            let percent = (downloaded as f32 / total as f32) * 100.0;
-            let _ = app.emit(
-                "update-install://progress",
-                serde_json::json!({
-                    "percent": percent,
-                    "downloaded": downloaded,
-                    "total": total,
-                }),
-            );
-        }
-    }
-    file.flush().map_err(|e| format!("写入完成失败: {}", e))?;
-    drop(file);
+
+    let (downloaded, total) = stream_download_with_retry(
+        &url,
+        &tmp,
+        &app,
+        "update-install://progress",
+        "update",
+    )
+    .await?;
 
     #[cfg(unix)]
     if filename.to_ascii_lowercase().ends_with(".appimage") {
@@ -886,10 +905,18 @@ pub async fn install_update(url: String, app: AppHandle) -> Result<String, Strin
     );
 
     let target_str = target.to_string_lossy().to_string();
-    // Hand off to OS — mounts DMG / runs EXE / launches AppImage.
-    app.opener()
-        .open_path(&target_str, None::<&str>)
-        .map_err(|e| format!("打开安装包失败: {}", e))?;
+    // Hand off to OS — mounts DMG / runs EXE / launches AppImage. If the OS
+    // handler rejects it (e.g. Gatekeeper on an unsigned DMG), fall back to
+    // revealing the installer in the file manager so the user can run it.
+    if let Err(open_err) = app.opener().open_path(&target_str, None::<&str>) {
+        log::warn!("opener.open_path 失败 ({open_err})，改为在 Finder/Explorer 中显示");
+        if let Err(reveal_err) = app.opener().reveal_item_in_dir(&target_str) {
+            return Err(format!(
+                "下载完成但无法自动打开（{}）。安装包已保存到：{}",
+                reveal_err, target_str
+            ));
+        }
+    }
 
     Ok(target_str)
 }
